@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "IconPackager": {
+      "commandName": "Project",
+      "commandLineArgs": "\"..\\..\\..\\properties\\project.ini\""
+    }
+  }
+}
