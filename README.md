@@ -11,7 +11,7 @@ Active development. Targets libraries/projects built for:
 
 ## Features
 - Generate multi-resolution icon sets from raster images (.BMP, .PNG, etc)
-- Include elements from .SVG images (future)
+- Include elements from .SVG images
 - Package icon sets for Windows targets
 - Command-line tooling and library API for integration in build pipelines
 
@@ -38,8 +38,8 @@ pack=large-hires.png
 - Additional options include
     - mask {$html-colour} to set the transparency mask.
 	- invert {$html-colour} to set the invert-colour overlay.
-	- use {$xml-element} for selecting named elements from .SVG files (future).
-	- snip {$x},{$y},{$width},{$height} for using a subselection of the image. Units can be px,in,mm (default mm) (future).
+	- use {$xml-element} for selecting named elements from .SVG files, by id or Inkscape label. Only that element is drawn, scaled to fit the icon.
+	- snip {$x},{$y},{$width},{$height} for using a subselection of the image. Units can be px,in,mm (default mm).
 
 ## API usage (library)
 - Instantiate the IconBuilder class.

@@ -11,7 +11,8 @@ namespace IcoNet {
 		public static Bitmap Crop(this Image image, Rectangle rect) {
 			var nb = new Bitmap(rect.Width, rect.Height);
 			using Graphics g = Graphics.FromImage(nb);
-			g.DrawImage(image, -rect.X, -rect.Y);
+			// Copy by pixel rectangles: drawing at a point would rescale an image whose DPI differs from the target's.
+			g.DrawImage(image, new Rectangle(0, 0, rect.Width, rect.Height), rect, GraphicsUnit.Pixel);
 			return nb;
 		}
 
