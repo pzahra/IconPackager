@@ -8,9 +8,9 @@ namespace IcoNet {
 	/// </summary>
 	/// <remarks>
 	/// Add one frame per size with <see cref="Add"/>, then call <see cref="Write"/>. Frames are written in the
-	/// order they were added. Every directory entry is declared as 32 bits per pixel, so frame data should be
-	/// 32-bit ARGB: either a complete PNG file (the convention for 256 px frames) or a device-independent
-	/// bitmap with an AND mask, as produced by <see cref="BitmapExt.GetBmpData"/>.
+	/// order they were added. A frame is either a complete PNG file (the convention for 256 px frames) or a
+	/// device-independent bitmap with an AND mask, as produced by <see cref="BitmapExt.GetBmpData(System.Drawing.Bitmap, int)"/>;
+	/// the directory entry's depth and palette size are read from the frame itself.
 	/// </remarks>
 	public class IconBuilder {
 		/// <summary>Number of frames added so far.</summary>
@@ -20,8 +20,9 @@ namespace IcoNet {
 
 		/// <summary>Adds a square frame.</summary>
 		/// <param name="size">Width and height in pixels, from 1 to 256.</param>
-		/// <param name="data">The encoded frame: a PNG file, or a DIB from <see cref="BitmapExt.GetBmpData"/>.</param>
+		/// <param name="data">The encoded frame: a PNG file, or a DIB from <see cref="BitmapExt.GetBmpData(System.Drawing.Bitmap, int)"/>.</param>
 		/// <exception cref="ArgumentOutOfRangeException"><paramref name="size"/> is outside 1 to 256.</exception>
+		/// <exception cref="ArgumentException"><paramref name="data"/> is neither a PNG file nor a DIB.</exception>
 		public void Add(int size, byte[] data) {
 			if (size < 1 || size > 256) throw new ArgumentOutOfRangeException(nameof(size), "Size must be between 1 and 256");
 			if (size == 256) size = 0;
@@ -60,6 +61,10 @@ namespace IcoNet {
 			public byte Width => size;
 			/// <summary>Height in pixels as stored in the directory, where 0 stands for 256.</summary>
 			public byte Height => size;
+			/// <summary>Bits per pixel recorded in the directory: 32 for a PNG frame, otherwise the DIB's depth.</summary>
+			public short BitCount { get; }
+			/// <summary>Palette size recorded in the directory: 2 or 16 for 1- and 4-bit frames, otherwise 0.</summary>
+			public byte ColorCount { get; }
 			/// <summary>Length of the frame data in bytes.</summary>
 			public int Length => data.Length;
 			/// <summary>Byte offset of the frame data from the start of the file, given the frames added so far.</summary>
@@ -81,20 +86,34 @@ namespace IcoNet {
 			/// <summary>Creates an entry owned by <paramref name="owner"/>. Normally reached through <see cref="IconBuilder.Add"/>.</summary>
 			/// <param name="owner">The icon the entry belongs to; used to compute <see cref="Offset"/>.</param>
 			/// <param name="size">Width and height in pixels, with 0 standing for 256.</param>
-			/// <param name="data">The encoded frame.</param>
+			/// <param name="data">The encoded frame, a PNG file or a DIB.</param>
+			/// <exception cref="ArgumentException"><paramref name="data"/> is neither a PNG file nor a DIB.</exception>
 			public IconEntry(IconBuilder owner, byte size, byte[] data) {
 				directory = owner;
 				this.size = size;
 				this.data = data;
+				if (IsPng(data)) {
+					BitCount = 32;
+				}
+				else if (data.Length >= 40) {
+					BitCount = BitConverter.ToInt16(data, 14); // BITMAPINFOHEADER.biBitCount
+					ColorCount = BitCount < 8 ? (byte)(1 << BitCount) : (byte)0; // 256 does not fit a byte, so 8-bit frames record 0
+				}
+				else {
+					throw new ArgumentException("Frame data is neither a PNG file nor a DIB", nameof(data));
+				}
 			}
+
+			private static bool IsPng(byte[] data) =>
+				data.Length > 8 && data[0] == 0x89 && data[1] == 0x50 && data[2] == 0x4E && data[3] == 0x47;
 
 			internal void WriteEntry(BinaryWriter writer) {
 				writer.Write(Width);
 				writer.Write(Height);
-				writer.Write((byte)0); // palette length
-				writer.Write((byte)0); // nothing
+				writer.Write(ColorCount);
+				writer.Write((byte)0); // reserved
 				writer.Write((short)1); // colour planes
-				writer.Write((short)32); // bit depth
+				writer.Write(BitCount);
 				writer.Write(Length);
 				writer.Write(Offset);
 			}

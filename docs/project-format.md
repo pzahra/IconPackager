@@ -62,9 +62,17 @@ Frames are written to the icon in the order they appear. Size and depth together
 second line with the same size and depth replaces the first, while two depths at the same size give two
 frames of that size.
 
-Depth does not yet change the output. Every frame is written at 32 bits per pixel with an alpha channel.
-`bw`, `pal` and `rgb` are accepted so that projects can be written now, ready for when reduced depths are
-implemented.
+The depth sets how the frame is stored:
+
+| Depth | Bits per pixel | Colour |
+|---|---|---|
+| `bw` | 1 | Black or white, decided by each pixel's luminance. |
+| `pal` | 8 | A palette of up to 255 colours chosen from the frame by median cut, plus black. Each pixel takes the nearest palette colour; there is no dithering. |
+| `rgb` | 24 | Full colour, no alpha channel. |
+| `true` | 32 | Full colour with an alpha channel. |
+
+At `bw`, `pal` and `rgb` transparency is a hard edge: pixels less than half opaque are transparent and the
+rest are drawn solid. 256 px frames are always stored as 32-bit PNG whatever depth is written.
 
 ## Frames
 
@@ -140,8 +148,8 @@ Both are parsed and validated but do not yet affect the output. The defaults are
 - **Raster**: the image, or its `snip` region, is resized to the square frame with bicubic resampling. The
   aspect ratio is not preserved, so a non-square image is stretched. Use `snip` to cut a square region
   first.
-- The 256 px frame is stored as PNG. All other frames are stored as 32-bit bitmaps with a 1-bit
-  transparency mask derived from the alpha channel.
+- The 256 px frame is stored as PNG. All other frames are stored as bitmaps at the requested depth with a
+  1-bit transparency mask derived from the alpha channel.
 
 ## Errors and exit code
 

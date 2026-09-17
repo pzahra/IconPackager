@@ -21,12 +21,12 @@ Working today:
 
 - Frames from raster images (`.png`, `.bmp` and anything else System.Drawing opens), resized to each frame size.
 - Frames from `.svg` files: the whole page, one element chosen by id or Inkscape label (`use`), or a region of the page (`snip`).
-- 256 px frames stored PNG-compressed; smaller frames stored as 32-bit bitmaps with a transparency mask.
+- 256 px frames stored PNG-compressed; smaller frames stored as bitmaps with a transparency mask at 1-bit
+  black and white (`bw`), 8-bit palette (`pal`), 24-bit RGB (`rgb`) or 32-bit ARGB (`true`).
 - Single PNG images at any frame size from the same sources, for NuGet package icons and the like.
 
 Parsed but not yet applied to the output:
 
-- Bit depths `bw`, `pal` and `rgb`. Every frame is currently written at 32 bits per pixel.
 - The `mask` and `invert` colours.
 
 ## Requirements
@@ -99,9 +99,9 @@ The full format, including rendering rules and error behaviour, is in [docs/proj
 
 ## Using the library
 
-`IcoNet` writes the icon; you supply each frame as encoded bytes. Frames below 256 px go in as 32-bit
-bitmaps with a mask (`GetBmpData`), and the 256 px frame goes in as a PNG (`GetPngData`). Both helpers
-expect a 32-bit ARGB bitmap, which `Resize` and `Crop` produce.
+`IcoNet` writes the icon; you supply each frame as encoded bytes. Frames below 256 px go in as bitmaps
+with a mask (`GetBmpData`, at 32 bits or with a bit count of 1, 4, 8 or 24), and the 256 px frame goes in
+as a PNG (`GetPngData`). The builder reads each frame's depth and palette size from the data itself.
 
 ```csharp
 using System.Drawing;

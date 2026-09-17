@@ -1,4 +1,4 @@
-﻿using System;
+﻿﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -131,7 +131,7 @@ namespace IconPackager {
 					try {
 						using var img = LoadImage(output.LookupFolder, frame, (int)size);
 						bool asPng = output.Kind == OutputKind.Png || size is IconSize.S256;
-						frames.Add(((int)size, asPng ? img.GetPngData() : img.GetBmpData()));
+						frames.Add(((int)size, asPng ? img.GetPngData() : img.GetBmpData((int)depth)));
 					}
 					catch (Exception ex) {
 						Console.Error.WriteLine($"{output.DestFile}: {(int)size}px frame from {frame.File}: {ex.Message}");
