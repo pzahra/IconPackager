@@ -132,11 +132,16 @@ Both are parsed and validated but do not yet affect the output. The defaults are
 - The 256 px frame is stored as PNG. All other frames are stored as 32-bit bitmaps with a 1-bit
   transparency mask derived from the alpha channel.
 
-## Errors
+## Errors and exit code
 
-- A **parse error** (an unrecognised line, option or crop value) stops the run before any icon from that
-  project file is written, and later project files on the command line are not processed. Icons from
-  earlier project files are unaffected. The message includes the offending text, and the process exits
-  with a non-zero code.
-- A **frame error** (missing file, unknown `use` name, empty region) prints a message to standard error and
-  skips that frame. The icon is still written with the remaining frames, and the exit code stays zero.
+Problems are reported on standard error, one line each, beginning with the file they concern. The process
+exits with code 0 when every icon in every project file was built in full, 1 when anything went wrong,
+and 2 when no project file was given.
+
+- A **project file** that does not exist, cannot be read, or contains an unrecognised line, option or crop
+  value is reported and none of its icons are written. The remaining project files on the command line
+  are still processed.
+- A **frame** that cannot be rendered (missing source file, unknown `use` name, empty region) is reported
+  and skipped. The icon is still written with its remaining frames. An icon left with no frames is not
+  written.
+- An **icon** that cannot be written (missing output folder, locked file) is reported.

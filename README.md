@@ -70,8 +70,9 @@ checked in as binaries. Keep the project file and artwork in the repository and 
 IconPackager src\icons\icons.ini
 ```
 
-A parse error in the project file fails the step with a non-zero exit code. A frame that cannot be rendered is reported on standard error but leaves the exit code at zero, so have the step fail on standard-error output if a
-missing frame must break the build.
+The exit code is 0 only when every icon was built in full. A project file that cannot be read or parsed,
+or a frame that cannot be rendered, is reported on standard error and makes the exit code 1, so the step
+fails. Icons whose remaining frames rendered are still written.
 
 ## Project files
 

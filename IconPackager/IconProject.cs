@@ -14,7 +14,7 @@ namespace IconPackager {
 		readonly List<IconDef> icons = [];
 
 		public static IconProject FromFile(string file) {
-			if (!File.Exists(file)) throw new FileNotFoundException();
+			if (!File.Exists(file)) throw new FileNotFoundException("Project file not found", file);
 			var prj = new IconProject();
 			Regex rxIcoName = new(@"\[(.*\.ico)\]");
 			Regex rxIcoProp = new(@"(source|pack|(16|24|32|48|64|128|256)-(bw|pal|rgb|true))\s*=\s*(.*)");
@@ -113,43 +113,61 @@ namespace IconPackager {
 
 		private IconProject() { }
 
-		public void RenderAll() {
+		/// <summary>
+		/// Renders every icon and writes each one that has at least one frame. Problems are reported on
+		/// standard error, one line each, and rendering carries on with the next frame or icon.
+		/// </summary>
+		/// <returns>True when every frame of every icon was rendered and written.</returns>
+		public bool RenderAll() {
+			bool ok = true;
 			foreach (var icon in icons) {
 				var iconFile = new IconBuilder();
-				foreach (var ((size,depth),frame) in icon.Frames) {
-					using var img = LoadImage(icon.LookupFolder, frame, (int)size);
-					if (img is null) continue;
-					iconFile.Add((int)size, size is IconSize.S256 ? img.GetPngData() : img.GetBmpData());
+				foreach (var ((size, depth), frame) in icon.Frames) {
+					try {
+						using var img = LoadImage(icon.LookupFolder, frame, (int)size);
+						iconFile.Add((int)size, size is IconSize.S256 ? img.GetPngData() : img.GetBmpData());
+					}
+					catch (Exception ex) {
+						Console.Error.WriteLine($"{icon.DestFile}: {(int)size}px frame from {frame.File}: {ex.Message}");
+						ok = false;
+					}
 				}
 
-				using var outfile = new FileStream(icon.DestFile, FileMode.Create);
-				using var writer = new BinaryWriter(outfile);
-				iconFile.Write(writer);
+				if (iconFile.ImageCount == 0) {
+					Console.Error.WriteLine($"{icon.DestFile}: no frames rendered, icon not written");
+					ok = false;
+					continue;
+				}
+				try {
+					using var outfile = new FileStream(icon.DestFile, FileMode.Create);
+					using var writer = new BinaryWriter(outfile);
+					iconFile.Write(writer);
+				}
+				catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+					Console.Error.WriteLine($"{icon.DestFile}: {ex.Message}");
+					ok = false;
+				}
 			}
+			return ok;
 		}
 
-		private static Bitmap? LoadImage(string lookup, IconFrame frame, int size) {
-			try {
-				var file = Path.Combine(lookup, frame.File);
-				if (frame.File.EndsWith(".svg", StringComparison.OrdinalIgnoreCase)) {
-					return RenderSvg(SvgDocument.Open(file), frame, size);
-				}
+		private static Bitmap LoadImage(string lookup, IconFrame frame, int size) {
+			var file = Path.Combine(lookup, frame.File);
+			if (!File.Exists(file)) throw new FileNotFoundException($"Source file not found: {file}");
+			if (frame.File.EndsWith(".svg", StringComparison.OrdinalIgnoreCase)) {
+				return RenderSvg(SvgDocument.Open(file), frame, size);
+			}
 
-				// TODO: look into SkiaSharp or something to make this multi-platform.
-				using var bmp = (Bitmap)Image.FromFile(file);
-				if (frame.Crop is RectangleF mm) {
-					// The image's own resolution says how many pixels make up a millimetre.
-					float px = bmp.HorizontalResolution / 25.4f;
-					float py = bmp.VerticalResolution / 25.4f;
-					using var snip = bmp.Crop(Rectangle.Round(new RectangleF(mm.X * px, mm.Y * py, mm.Width * px, mm.Height * py)));
-					return snip.Resize(new(size, size));
-				}
-				return bmp.Resize(new(size, size));
+			// TODO: look into SkiaSharp or something to make this multi-platform.
+			using var bmp = (Bitmap)Image.FromFile(file);
+			if (frame.Crop is RectangleF mm) {
+				// The image's own resolution says how many pixels make up a millimetre.
+				float px = bmp.HorizontalResolution / 25.4f;
+				float py = bmp.VerticalResolution / 25.4f;
+				using var snip = bmp.Crop(Rectangle.Round(new RectangleF(mm.X * px, mm.Y * py, mm.Width * px, mm.Height * py)));
+				return snip.Resize(new(size, size));
 			}
-			catch(Exception ex) {
-				Console.Error.WriteLine(ex.Message);
-				return null;
-			}
+			return bmp.Resize(new(size, size));
 		}
 
 		/// <summary>
