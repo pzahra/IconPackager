@@ -22,6 +22,7 @@ Working today:
 - Frames from raster images (`.png`, `.bmp` and anything else System.Drawing opens), resized to each frame size.
 - Frames from `.svg` files: the whole page, one element chosen by id or Inkscape label (`use`), or a region of the page (`snip`).
 - 256 px frames stored PNG-compressed; smaller frames stored as 32-bit bitmaps with a transparency mask.
+- Single PNG images at any frame size from the same sources, for NuGet package icons and the like.
 
 Parsed but not yet applied to the output:
 
@@ -76,7 +77,8 @@ fails. Icons whose remaining frames rendered are still written.
 
 ## Project files
 
-A project file has one `[name.ico]` section per icon. Inside a section:
+A project file has one section per output file: `[name.ico]` for an icon, or `[name.png]` for a single
+PNG image such as the 128 px package icon NuGet recommends. Inside a section:
 
 | Line                   | Meaning                                                                                        |
 | ---------------------- | ---------------------------------------------------------------------------------------------- |

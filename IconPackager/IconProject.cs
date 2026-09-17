@@ -11,12 +11,12 @@ using Svg;
 
 namespace IconPackager {
 	class IconProject {
-		readonly List<IconDef> icons = [];
+		readonly List<IconDef> outputs = [];
 
 		public static IconProject FromFile(string file) {
 			if (!File.Exists(file)) throw new FileNotFoundException("Project file not found", file);
 			var prj = new IconProject();
-			Regex rxIcoName = new(@"\[(.*\.ico)\]");
+			Regex rxIcoName = new(@"\[(.*\.(ico|png))\]");
 			Regex rxIcoProp = new(@"(source|pack|(16|24|32|48|64|128|256)-(bw|pal|rgb|true))\s*=\s*(.*)");
 			// file|param value|param value...  Anchored so that a parameter that fails to parse is reported
 			// rather than silently dropped. Values run to the next '|' so element names may contain spaces.
@@ -32,9 +32,10 @@ namespace IconPackager {
 				if (section.Success) {
 					ico = new() {
 						DestFile = Path.Combine(folder, section.Groups[1].Value),
+						Kind = section.Groups[2].Value == "png" ? OutputKind.Png : OutputKind.Ico,
 						LookupFolder = folder,
 					};
-					prj.icons.Add(ico);
+					prj.outputs.Add(ico);
 					continue;
 				}
 
@@ -105,6 +106,10 @@ namespace IconPackager {
 								break;
 						}
 					}
+					// A PNG holds one image, so a second frame of a different size has nowhere to go.
+					if (ico.Kind == OutputKind.Png && ico.Frames.Count > 0 && !ico.Frames.ContainsKey((size, depth))) {
+						throw new IconProjectParseError("Parse Error: a .png output takes a single frame: " + line);
+					}
 					ico.Frames[(size, depth)] = frame;
 				}
 			}
@@ -114,37 +119,47 @@ namespace IconPackager {
 		private IconProject() { }
 
 		/// <summary>
-		/// Renders every icon and writes each one that has at least one frame. Problems are reported on
-		/// standard error, one line each, and rendering carries on with the next frame or icon.
+		/// Renders every output and writes each one that has at least one frame. Problems are reported on
+		/// standard error, one line each, and rendering carries on with the next frame or output.
 		/// </summary>
-		/// <returns>True when every frame of every icon was rendered and written.</returns>
+		/// <returns>True when every frame of every output was rendered and written.</returns>
 		public bool RenderAll() {
 			bool ok = true;
-			foreach (var icon in icons) {
-				var iconFile = new IconBuilder();
-				foreach (var ((size, depth), frame) in icon.Frames) {
+			foreach (var output in outputs) {
+				var frames = new List<(int Size, byte[] Data)>();
+				foreach (var ((size, depth), frame) in output.Frames) {
 					try {
-						using var img = LoadImage(icon.LookupFolder, frame, (int)size);
-						iconFile.Add((int)size, size is IconSize.S256 ? img.GetPngData() : img.GetBmpData());
+						using var img = LoadImage(output.LookupFolder, frame, (int)size);
+						bool asPng = output.Kind == OutputKind.Png || size is IconSize.S256;
+						frames.Add(((int)size, asPng ? img.GetPngData() : img.GetBmpData()));
 					}
 					catch (Exception ex) {
-						Console.Error.WriteLine($"{icon.DestFile}: {(int)size}px frame from {frame.File}: {ex.Message}");
+						Console.Error.WriteLine($"{output.DestFile}: {(int)size}px frame from {frame.File}: {ex.Message}");
 						ok = false;
 					}
 				}
 
-				if (iconFile.ImageCount == 0) {
-					Console.Error.WriteLine($"{icon.DestFile}: no frames rendered, icon not written");
+				if (frames.Count == 0) {
+					Console.Error.WriteLine($"{output.DestFile}: no frames rendered, not written");
 					ok = false;
 					continue;
 				}
 				try {
-					using var outfile = new FileStream(icon.DestFile, FileMode.Create);
-					using var writer = new BinaryWriter(outfile);
-					iconFile.Write(writer);
+					using var outfile = new FileStream(output.DestFile, FileMode.Create);
+					if (output.Kind == OutputKind.Png) {
+						outfile.Write(frames[0].Data);
+					}
+					else {
+						var iconFile = new IconBuilder();
+						foreach (var (size, data) in frames) {
+							iconFile.Add(size, data);
+						}
+						using var writer = new BinaryWriter(outfile);
+						iconFile.Write(writer);
+					}
 				}
 				catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
-					Console.Error.WriteLine($"{icon.DestFile}: {ex.Message}");
+					Console.Error.WriteLine($"{output.DestFile}: {ex.Message}");
 					ok = false;
 				}
 			}
@@ -283,8 +298,10 @@ namespace IconPackager {
 
 	class IconProjectParseError(string message) : Exception(message) { }
 
+	/// <summary>One output file of a project: an icon holding several frames, or a single PNG image.</summary>
 	class IconDef {
 		public string DestFile = "";
+		public OutputKind Kind = OutputKind.Ico;
 		public string LookupFolder = "";
 		public Dictionary<(IconSize, IconDepth), IconFrame> Frames = [];
 
@@ -295,6 +312,10 @@ namespace IconPackager {
 		public RectangleF? Crop { get; set; }
 		public Color Mask { get; set; } = Color.Magenta;
 		public Color Invert { get; set; } = Color.Teal;
+	}
+	enum OutputKind {
+		Ico,
+		Png,
 	}
 	enum IconSize {
 		S16 = 16,

@@ -1,7 +1,7 @@
 # Icon project file format
 
-An icon project is a plain-text `.ini` file that tells IconPackager which `.ico` files to build and which
-frames to put in each. Run it with:
+An icon project is a plain-text `.ini` file that tells IconPackager which `.ico` files to build, which
+frames to put in each, and which single-image `.png` files to write alongside them. Run it with:
 
 ```
 IconPackager project.ini [more.ini ...]
@@ -22,6 +22,10 @@ pack=logo.svg|use AppIcon
 source=assets
 32-true=tray.svg|snip 0,0,12mm,12mm
 16-true=tray.svg|snip 15mm,0,12mm,12mm
+
+[package.png]
+source=assets
+128-true=logo.svg|use AppIcon
 ```
 
 ## Lines and comments
@@ -33,8 +37,15 @@ source=assets
 
 ## Sections
 
-`[name.ico]` starts an icon. The name must end in `.ico`. It is a path relative to the project file's
-folder, so `[icons/app.ico]` writes into an `icons` subfolder, which must already exist.
+A section starts an output file, and its extension says what kind:
+
+- `[name.ico]` builds an icon holding every frame listed in the section.
+- `[name.png]` writes a single PNG image, for uses that want one bitmap rather than an icon, such as the
+  128 px package icon NuGet recommends. The section takes exactly one frame; listing frames of two
+  different sizes is a parse error. The depth is accepted, but the PNG is always 32-bit with alpha.
+
+The name is a path relative to the project file's folder, so `[icons/app.ico]` writes into an `icons`
+subfolder, which must already exist.
 
 Lines before the first section are ignored. A line inside a section that is not a recognised property is
 a parse error.
@@ -142,6 +153,6 @@ and 2 when no project file was given.
   value is reported and none of its icons are written. The remaining project files on the command line
   are still processed.
 - A **frame** that cannot be rendered (missing source file, unknown `use` name, empty region) is reported
-  and skipped. The icon is still written with its remaining frames. An icon left with no frames is not
+  and skipped. The icon is still written with its remaining frames. An output left with no frames is not
   written.
-- An **icon** that cannot be written (missing output folder, locked file) is reported.
+- An **output file** that cannot be written (missing output folder, locked file) is reported.
