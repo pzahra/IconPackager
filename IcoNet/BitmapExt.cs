@@ -7,7 +7,14 @@ using System.IO;
 using System.Linq;
 
 namespace IcoNet {
+	/// <summary>
+	/// Helpers for turning <see cref="System.Drawing"/> images into icon frames for <see cref="IconBuilder"/>.
+	/// </summary>
+	/// <remarks>Windows only: System.Drawing.Common is not supported on other platforms.</remarks>
 	public static class BitmapExt {
+		/// <summary>Copies a rectangle of pixels into a new 32-bit ARGB bitmap.</summary>
+		/// <param name="image">The source image.</param>
+		/// <param name="rect">The region to copy, in pixels of the source.</param>
 		public static Bitmap Crop(this Image image, Rectangle rect) {
 			var nb = new Bitmap(rect.Width, rect.Height);
 			using Graphics g = Graphics.FromImage(nb);
@@ -16,6 +23,12 @@ namespace IcoNet {
 			return nb;
 		}
 
+		/// <summary>
+		/// Scales the image to <paramref name="size"/> into a new 32-bit ARGB bitmap using high-quality bicubic
+		/// resampling. The aspect ratio is not preserved: a non-square image becomes a stretched square frame.
+		/// </summary>
+		/// <param name="image">The source image.</param>
+		/// <param name="size">The output size in pixels.</param>
 		public static Bitmap Resize(this Image image, Size size) {
 			var nb = new Bitmap(size.Width, size.Height);
 			using Graphics g = Graphics.FromImage(nb);
@@ -31,12 +44,22 @@ namespace IcoNet {
 			return nb;
 		}
 
+		/// <summary>Encodes the image as a complete PNG file, the format used for 256 px icon frames.</summary>
+		/// <param name="bmp">The frame to encode.</param>
 		public static byte[] GetPngData(this Image bmp) {
 			using var stream = new MemoryStream();
 			bmp.Save(stream, ImageFormat.Png);
 			return stream.ToArray();
 		}
 
+		/// <summary>
+		/// Encodes the bitmap as an icon DIB: a BITMAPINFOHEADER, the 32-bit BGRA pixels stored bottom-up, and a
+		/// 1-bit AND mask derived from the alpha channel (see <see cref="GetMask"/>).
+		/// </summary>
+		/// <param name="bmp">
+		/// A <see cref="PixelFormat.Format32bppArgb"/> bitmap, as returned by <see cref="Resize"/> and <see cref="Crop"/>.
+		/// Other pixel formats produce corrupt frames. The bitmap is flipped in place while it is read and restored afterwards.
+		/// </param>
 		public static byte[] GetBmpData(this Bitmap bmp) {
 			bmp.RotateFlip(RotateFlipType.RotateNoneFlipY);
 			var data = bmp.LockBits(
@@ -76,6 +99,12 @@ namespace IcoNet {
 			writer.Write(0); // number of important palette colours (unused)
 		}
 
+		/// <summary>
+		/// Builds the 1-bit AND mask for 32-bit pixel data: a 1 bit where a pixel is fully transparent, most
+		/// significant bit first, with each row padded to a multiple of 32 bits.
+		/// </summary>
+		/// <param name="pixels">BGRA pixels, 4 bytes each, in the row order the mask should follow.</param>
+		/// <param name="width">Row width in pixels.</param>
 		public static IEnumerable<byte> GetMask(byte[] pixels, int width) {
 			int pad = width % 32;
 			byte threshold = 1;

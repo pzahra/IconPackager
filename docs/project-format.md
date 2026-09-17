@@ -1,0 +1,142 @@
+# Icon project file format
+
+An icon project is a plain-text `.ini` file that tells IconPackager which `.ico` files to build and which
+frames to put in each. Run it with:
+
+```
+IconPackager project.ini [more.ini ...]
+```
+
+Each project file is processed in turn, and its icons are written next to it.
+
+```ini
+; Comments start with a semicolon.
+[app.ico]
+source=assets
+pack=logo.svg|use AppIcon
+48-true=logo.svg|use AppIcon
+32-true=logo.svg|use AppIcon
+16-pal=legacy.bmp|mask #ff00ff
+
+[tray.ico]
+source=assets
+32-true=tray.svg|snip 0,0,12mm,12mm
+16-true=tray.svg|snip 15mm,0,12mm,12mm
+```
+
+## Lines and comments
+
+- The file is read as UTF-8. A byte-order mark is allowed.
+- Blank lines are ignored, and so is whitespace at either end of a line.
+- A semicolon starts a comment. Everything from the first `;` to the end of the line is dropped, so a `;`
+  cannot appear inside a value.
+
+## Sections
+
+`[name.ico]` starts an icon. The name must end in `.ico`. It is a path relative to the project file's
+folder, so `[icons/app.ico]` writes into an `icons` subfolder, which must already exist.
+
+Lines before the first section are ignored. A line inside a section that is not a recognised property is
+a parse error.
+
+## Properties
+
+| Property | Value | Meaning |
+|---|---|---|
+| `source` | folder | Where the section's frame files are looked up. Relative to the project file, or absolute. Each section starts at the project file's folder, and repeating `source` appends to the previous folder rather than replacing it. |
+| `pack` | frame | A 256 × 256 frame, stored PNG-compressed. Equivalent to `256-true`. |
+| `<size>-<depth>` | frame | One frame. `size` is one of 16, 24, 32, 48, 64, 128 or 256. `depth` is `bw`, `pal`, `rgb` or `true`. |
+
+Frames are written to the icon in the order they appear. Size and depth together identify a frame: a
+second line with the same size and depth replaces the first, while two depths at the same size give two
+frames of that size.
+
+Depth does not yet change the output. Every frame is written at 32 bits per pixel with an alpha channel.
+`bw`, `pal` and `rgb` are accepted so that projects can be written now, ready for when reduced depths are
+implemented.
+
+## Frames
+
+A frame value is a file name followed by zero or more options, separated by `|`:
+
+```
+file|option value|option value
+```
+
+- `file` is relative to the section's `source` folder. Spaces around each `|` are ignored.
+- A file ending in `.svg` (in any case) is rendered as vector artwork. Any other file is opened as a raster
+  image through System.Drawing, which covers PNG, BMP, GIF, JPEG and TIFF.
+- An option is its name, a space, then its value. The value runs to the next `|` or the end of the line,
+  so it may contain spaces.
+- An unknown option, or an option without a value, is a parse error.
+
+### use
+
+```
+logo.svg|use AppIcon
+```
+
+SVG files only; ignored for raster files. Names one element of the drawing. Only that element and its
+children are rendered, scaled uniformly to fill the frame and centred, with transparent margins along the
+shorter side.
+
+The name is matched against element ids first, then against Inkscape labels (the `inkscape:label`
+attribute, which is the name shown in Inkscape's Layers and Objects panel). If several elements share a
+label, the first in document order wins. A layer can be named, in which case the whole layer is rendered.
+
+Artwork outside the element is hidden, so overlapping shapes elsewhere on the page do not bleed into the
+frame. The element's parent layers are made visible, so an element on a hidden layer still renders.
+Styles inherited from parents, and gradient or pattern definitions, remain in effect. One limitation: an
+Inkscape clone whose original lies outside the element renders blank, because the original is hidden
+along with everything else.
+
+A name that matches nothing is a frame error: the frame is reported and skipped.
+
+### snip
+
+```
+tray.svg|snip 15mm,0,12mm,12mm
+sheet.png|snip 0.5in 0.5in 1in 1in
+```
+
+Crops to a region given as x, y, width and height. Numbers may have decimals and are separated by commas
+or spaces. Each number takes an optional unit: `mm` (the default), `in`, or `px`, where a `px` is 1/96 of
+an inch.
+
+- For SVG files the region is measured on the physical page, as sized by the root element's `width` and
+  `height`. A page with unitless or percentage dimensions is treated as 96 dpi pixels, the way browsers do.
+- For raster files millimetres are converted to pixels using the image's own resolution (its DPI), then
+  the region is scaled to the frame.
+
+When `use` and `snip` are combined, `snip` sets the region and `use` still hides everything outside the
+named element.
+
+### mask and invert
+
+```
+legacy.bmp|mask #ff00ff|invert #008080
+```
+
+Reserved for legacy raster artwork. `mask` names the colour that marks transparent pixels and `invert`
+the colour of an invert overlay. Colours are HTML colours, either `#rrggbb` or a name such as `Magenta`.
+Both are parsed and validated but do not yet affect the output. The defaults are magenta and teal.
+
+## How frames are rendered
+
+- **SVG, whole page** (no `use` or `snip`): the page is fitted inside the square frame with its aspect
+  ratio preserved, leaving transparent margins.
+- **SVG, element or region**: the element's bounds or the `snip` region is fitted the same way.
+- **Raster**: the image, or its `snip` region, is resized to the square frame with bicubic resampling. The
+  aspect ratio is not preserved, so a non-square image is stretched. Use `snip` to cut a square region
+  first.
+- The 256 px frame is stored as PNG. All other frames are stored as 32-bit bitmaps with a 1-bit
+  transparency mask derived from the alpha channel.
+
+## Errors
+
+- A **parse error** (an unrecognised line, option or crop value) stops the run before any icon from that
+  project file is written, and later project files on the command line are not processed. Icons from
+  earlier project files are unaffected. The message includes the offending text, and the process exits
+  with a non-zero code.
+- A **frame error** (missing file, unknown `use` name, empty region) prints a message to standard error and
+  skips that frame. The icon is still written with the remaining frames, and the exit code stays zero.
