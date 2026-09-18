@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 
-namespace IcoNet {
+namespace PatTech.IcoNet {
 	/// <summary>
 	/// Assembles a Windows icon (<c>.ico</c>) from pre-encoded frames and writes it to a stream.
 	/// </summary>

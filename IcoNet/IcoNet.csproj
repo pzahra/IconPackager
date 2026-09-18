@@ -3,6 +3,9 @@
   <PropertyGroup>
     <TargetFrameworks>netstandard2.1;net10.0</TargetFrameworks>
     <Nullable>enable</Nullable>
+    <RootNamespace>PatTech.IcoNet</RootNamespace>
+    <AssemblyName>PatTech.IcoNet</AssemblyName>
+    <PackageId>PatTech.IcoNet</PackageId>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <Description>Writes multi-resolution Windows .ico files from encoded frames: bitmaps with a transparency mask below 256 px and a PNG at 256 px. The library behind the IconPackager build step, for tools that produce icons themselves.</Description>
     <PackageTags>ico;icon;windows;png;bitmap</PackageTags>

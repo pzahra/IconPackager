@@ -7,7 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 
-namespace IcoNet {
+namespace PatTech.IcoNet {
 	/// <summary>
 	/// Helpers for turning <see cref="System.Drawing"/> images into icon frames for <see cref="IconBuilder"/>.
 	/// </summary>
@@ -53,9 +53,14 @@ namespace IcoNet {
 			return stream.ToArray();
 		}
 
-		/// <summary>Encodes the bitmap as a 32-bit icon DIB. See <see cref="GetBmpData(Bitmap, int)"/>.</summary>
+		/// <summary>Encodes the bitmap as a 32-bit icon DIB. See <see cref="GetBmpData(Bitmap, int, Color?)"/>.</summary>
 		/// <param name="bmp">The frame, in any pixel format.</param>
-		public static byte[] GetBmpData(this Bitmap bmp) => bmp.GetBmpData(32);
+		public static byte[] GetBmpData(this Bitmap bmp) => bmp.GetBmpData(32, null);
+
+		/// <summary>Encodes the bitmap as an icon DIB at the given depth. See <see cref="GetBmpData(Bitmap, int, Color?)"/>.</summary>
+		/// <param name="bmp">The frame, in any pixel format.</param>
+		/// <param name="bitCount">Bits per pixel: 1 (black and white), 4 or 8 (palette), 24 (RGB) or 32 (ARGB).</param>
+		public static byte[] GetBmpData(this Bitmap bmp, int bitCount) => bmp.GetBmpData(bitCount, null);
 
 		/// <summary>
 		/// Encodes the bitmap as an icon DIB at the given depth: a BITMAPINFOHEADER, the colour table for
@@ -63,14 +68,21 @@ namespace IcoNet {
 		/// </summary>
 		/// <param name="bmp">The frame, in any pixel format.</param>
 		/// <param name="bitCount">Bits per pixel: 1 (black and white), 4 or 8 (palette), 24 (RGB) or 32 (ARGB).</param>
+		/// <param name="invert">
+		/// A colour whose opaque pixels become screen-inverting pixels: set in the AND mask with a white XOR
+		/// value, so that a reader honouring the mask inverts whatever lies beneath them. Null for none.
+		/// Readers blend 32-bit frames by their alpha channel and ignore the mask, so at 32 bits such pixels
+		/// simply appear transparent.
+		/// </param>
 		/// <remarks>
 		/// At 32 bits the alpha channel is kept and the mask marks only fully transparent pixels. At lower
 		/// depths the mask is the only transparency: pixels less than half opaque are transparent, the rest
-		/// opaque. Palette depths reserve index 0 for black, which transparent pixels use, and fill the other
-		/// entries by median-cut quantisation of the opaque colours weighted by how often each occurs; pixels
-		/// then take the nearest palette colour, without dithering. Black and white is decided by luminance.
+		/// opaque. Palette depths reserve index 0 for black, which transparent pixels use, and the last index
+		/// for white when there are inverting pixels; the other entries are filled by median-cut quantisation
+		/// of the opaque colours weighted by how often each occurs, and pixels then take the nearest palette
+		/// colour, without dithering. Black and white is decided by luminance.
 		/// </remarks>
-		public static byte[] GetBmpData(this Bitmap bmp, int bitCount) {
+		public static byte[] GetBmpData(this Bitmap bmp, int bitCount, Color? invert) {
 			if (bitCount != 1 && bitCount != 4 && bitCount != 8 && bitCount != 24 && bitCount != 32) {
 				throw new ArgumentOutOfRangeException(nameof(bitCount), "Bit count must be 1, 4, 8, 24 or 32");
 			}
@@ -78,16 +90,31 @@ namespace IcoNet {
 			byte[] argb = GetArgbRows(bmp);
 			byte opaque = bitCount == 32 ? (byte)1 : (byte)128;
 
+			// Inverting pixels join the mask and are written white; the flags say which masked pixels those are.
+			bool[]? inverted = null;
+			if (invert is Color key) {
+				int match = key.ToArgb() & 0xFFFFFF;
+				inverted = new bool[width * height];
+				for (int i = 0; i < inverted.Length; ++i) {
+					int p = i * 4;
+					if (argb[p + 3] < opaque || (argb[p + 2] << 16 | argb[p + 1] << 8 | argb[p]) != match) continue;
+					inverted[i] = true;
+					argb[p] = argb[p + 1] = argb[p + 2] = 0xFF;
+					argb[p + 3] = 0;
+				}
+				if (Array.IndexOf(inverted, true) < 0) inverted = null;
+			}
+
 			Color[] palette = bitCount switch {
 				1 => new[] { Color.Black, Color.White },
-				4 => BuildPalette(argb, 16, opaque),
-				8 => BuildPalette(argb, 256, opaque),
+				4 => BuildPalette(argb, 16, opaque, inverted != null),
+				8 => BuildPalette(argb, 256, opaque, inverted != null),
 				_ => Array.Empty<Color>(),
 			};
 			byte[] pixels = bitCount switch {
 				32 => argb,
-				24 => PackRgb(argb, width, height, opaque),
-				_ => PackIndexed(argb, width, height, bitCount, palette, opaque),
+				24 => PackRgb(argb, width, height, opaque, inverted),
+				_ => PackIndexed(argb, width, height, bitCount, palette, opaque, inverted),
 			};
 			byte[] mask = GetMask(argb, width, opaque).ToArray();
 
@@ -160,14 +187,14 @@ namespace IcoNet {
 			writer.Write(0); // important colours (all)
 		}
 
-		/// <summary>24-bit BGR rows padded to 32 bits. Transparent pixels are left black so they XOR to nothing.</summary>
-		private static byte[] PackRgb(byte[] argb, int width, int height, byte opaque) {
+		/// <summary>24-bit BGR rows padded to 32 bits. Transparent pixels are left black so they XOR to nothing; inverting pixels are white.</summary>
+		private static byte[] PackRgb(byte[] argb, int width, int height, byte opaque, bool[]? inverted) {
 			int stride = RowStride(width, 24);
 			var rows = new byte[stride * height];
 			for (int y = 0; y < height; ++y) {
 				for (int x = 0; x < width; ++x) {
-					int p = (y * width + x) * 4, q = y * stride + x * 3;
-					if (argb[p + 3] < opaque) continue;
+					int i = y * width + x, p = i * 4, q = y * stride + x * 3;
+					if (argb[p + 3] < opaque && inverted?[i] != true) continue;
 					rows[q] = argb[p];
 					rows[q + 1] = argb[p + 1];
 					rows[q + 2] = argb[p + 2];
@@ -177,19 +204,26 @@ namespace IcoNet {
 		}
 
 		/// <summary>
-		/// Rows at 1, 4 or 8 bits per pixel padded to 32 bits: index 0 for transparent pixels, otherwise the
-		/// nearest palette colour, or at 1 bit white for luminance above the midpoint and black below.
+		/// Rows at 1, 4 or 8 bits per pixel padded to 32 bits: index 0 for transparent pixels, the white entry
+		/// for inverting pixels, otherwise the nearest palette colour, or at 1 bit white for luminance above the
+		/// midpoint and black below.
 		/// </summary>
-		private static byte[] PackIndexed(byte[] argb, int width, int height, int bitCount, Color[] palette, byte opaque) {
+		private static byte[] PackIndexed(byte[] argb, int width, int height, int bitCount, Color[] palette, byte opaque, bool[]? inverted) {
 			int stride = RowStride(width, bitCount);
 			var rows = new byte[stride * height];
 			var nearest = new Dictionary<int, int>();
+			int white = palette.Length - 1;
 			for (int y = 0; y < height; ++y) {
 				for (int x = 0; x < width; ++x) {
-					int p = (y * width + x) * 4;
-					if (argb[p + 3] < opaque) continue;
+					int i = y * width + x, p = i * 4;
 					int index;
-					if (bitCount == 1) {
+					if (inverted?[i] == true) {
+						index = white;
+					}
+					else if (argb[p + 3] < opaque) {
+						continue;
+					}
+					else if (bitCount == 1) {
 						// ITU-R BT.601 luma, scaled by 1000
 						index = argb[p + 2] * 299 + argb[p + 1] * 587 + argb[p] * 114 >= 128 * 1000 ? 1 : 0;
 					}
@@ -221,10 +255,11 @@ namespace IcoNet {
 		}
 
 		/// <summary>
-		/// A palette of <paramref name="size"/> entries: black at index 0, the opaque colours reduced by median
-		/// cut, then black padding. Transparent pixels must map to black so that they XOR to nothing on screen.
+		/// A palette of <paramref name="size"/> entries: black at index 0, white at the last index when
+		/// <paramref name="reserveWhite"/> is set, the opaque colours reduced by median cut in between, then
+		/// black padding. Transparent pixels must map to black so that they XOR to nothing on screen.
 		/// </summary>
-		private static Color[] BuildPalette(byte[] argb, int size, byte opaque) {
+		private static Color[] BuildPalette(byte[] argb, int size, byte opaque, bool reserveWhite) {
 			var counts = new Dictionary<int, int>();
 			for (int i = 0; i < argb.Length; i += 4) {
 				if (argb[i + 3] < opaque) continue;
@@ -235,8 +270,12 @@ namespace IcoNet {
 			counts.Remove(0); // black already sits at index 0
 			var colours = counts.Select(kv => (Colour: Color.FromArgb(kv.Key | unchecked((int)0xFF000000)), Count: kv.Value)).ToList();
 			var palette = new Color[size];
+			int slots = size - 1;
+			if (reserveWhite) {
+				palette[--slots + 1] = Color.White;
+			}
 			int index = 1;
-			foreach (var colour in colours.Count < size ? colours.Select(c => c.Colour) : MedianCut(colours, size - 1)) {
+			foreach (var colour in colours.Count <= slots ? colours.Select(c => c.Colour) : MedianCut(colours, slots)) {
 				palette[index++] = colour;
 			}
 			return palette;

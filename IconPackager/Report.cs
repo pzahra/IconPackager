@@ -1,6 +1,6 @@
-using System;
+﻿using System;
 
-namespace IconPackager {
+namespace PatTech.IconPackager {
 	/// <summary>
 	/// Writes diagnostics to standard error in MSBuild's canonical format, <c>file(line): error CODE: text</c>,
 	/// so that a build step running the tool shows them in the error list and jumps to the offending line.

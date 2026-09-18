@@ -144,11 +144,24 @@ named element.
 
 ```
 legacy.bmp|mask #ff00ff|invert #008080
+photo.png|mask none
 ```
 
-Reserved for legacy raster artwork. `mask` names the colour that marks transparent pixels and `invert`
-the colour of an invert overlay. Colours are HTML colours, either `#rrggbb` or a name such as `Magenta`.
-Both are parsed and validated but do not yet affect the output. The defaults are magenta and teal.
+Colour keys for artwork that has no transparency of its own, in the style of the classic icon editors.
+`mask` names the colour to draw as transparent. `invert` names the colour to draw as screen-inverting
+pixels, which show the inverse of whatever lies beneath the icon so that an outline stays visible on any
+background. Colours are HTML colours, `#rrggbb`, `#rgb` or a name such as `Magenta`; anything else is a
+parse error. The value `none` switches a key off.
+
+- Pixels are matched exactly, on the source pixels before any cropping or scaling, so a key never bleeds
+  into the pixels around it.
+- When neither option is written, artwork without an alpha channel (a 24-bit BMP, a JPEG, an opaque PNG)
+  gets the classic defaults: magenta (`#ff00ff`) is transparent and teal (`#008080`) inverts. Artwork that
+  can express transparency itself, such as a 32-bit PNG or an SVG, is left as drawn unless a key is
+  written for it.
+- Inverting pixels exist only at the `bw`, `pal` and `rgb` depths. Windows blends 32-bit frames by their
+  alpha channel and ignores the invert mechanism, so at `true` depth, in 256 px frames and in `.png`
+  outputs those pixels are simply transparent.
 
 ## How frames are rendered
 

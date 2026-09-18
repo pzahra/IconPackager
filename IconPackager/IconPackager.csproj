@@ -5,7 +5,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <RollForward>LatestMajor</RollForward>
     <Nullable>enable</Nullable>
-    <StartupObject>IconPackager.Program</StartupObject>
+    <RootNamespace>PatTech.IconPackager</RootNamespace>
+    <StartupObject>PatTech.IconPackager.Program</StartupObject>
     <ProduceReferenceAssembly>False</ProduceReferenceAssembly>
   </PropertyGroup>
 
@@ -15,6 +16,7 @@
     gets its icons built before it compiles and nothing copied into its own output.
   -->
   <PropertyGroup>
+    <PackageId>PatTech.IconPackager</PackageId>
     <Description>Builds multi-resolution Windows .ico files from PNG, BMP and SVG artwork during the build, driven by an icons.ini project file next to the artwork. Add the package and an icons.ini; the icons are rebuilt whenever the artwork changes.</Description>
     <PackageTags>ico;icon;windows;svg;png;msbuild;build</PackageTags>
     <DevelopmentDependency>true</DevelopmentDependency>
@@ -35,7 +37,7 @@
   <ItemGroup>
     <!-- Listed explicitly: items from the SDK's glob carry a RecursiveDir that would nest them as build\build\. -->
     <None Remove="build\**" />
-    <None Include="build\IconPackager.props;build\IconPackager.targets" Pack="true" PackagePath="build\" />
+    <None Include="build\PatTech.IconPackager.props;build\PatTech.IconPackager.targets" Pack="true" PackagePath="build\" />
   </ItemGroup>
 
   <!--

@@ -1,8 +1,8 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Threading;
 
-namespace IconPackager {
+namespace PatTech.IconPackager {
 	class Program {
 		/// <summary>Builds every project file named on the command line.</summary>
 		/// <returns>

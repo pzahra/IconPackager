@@ -4,6 +4,7 @@
   <PropertyGroup>
     <Version>0.1.0</Version>
     <Authors>Patrick Zahra</Authors>
+    <Company>PatTech</Company>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/pzahra/IconPackager</PackageProjectUrl>
     <RepositoryUrl>https://github.com/pzahra/IconPackager</RepositoryUrl>
