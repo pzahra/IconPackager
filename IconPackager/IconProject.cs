@@ -11,29 +11,33 @@ using Svg;
 
 namespace IconPackager {
 	class IconProject {
+		readonly string file;
 		readonly List<IconDef> outputs = [];
 
 		public static IconProject FromFile(string file) {
 			if (!File.Exists(file)) throw new FileNotFoundException("Project file not found", file);
-			var prj = new IconProject();
+			var prj = new IconProject(file);
 			Regex rxIcoName = new(@"\[(.*\.(ico|png))\]");
-			Regex rxIcoProp = new(@"(source|pack|(16|24|32|48|64|128|256)-(bw|pal|rgb|true))\s*=\s*(.*)");
+			Regex rxIcoProp = new(@"(source|output|pack|(16|24|32|48|64|128|256)-(bw|pal|rgb|true))\s*=\s*(.*)");
 			// file|param value|param value...  Anchored so that a parameter that fails to parse is reported
 			// rather than silently dropped. Values run to the next '|' so element names may contain spaces.
 			Regex rxIcoParam = new(@"^([^|]+?)\s*(?:\|\s*(use|snip|mask|invert)\s+([^|]+?)\s*)*$");
 			Regex rxCrop = new(@"^(?:(\d+(?:\.\d+)?)(|mm|in|px)(?:[, ]+|$)){4}$");
 			IconDef? ico = null;
 			string folder = Path.GetDirectoryName(file)!;
-			foreach (var line in File.ReadAllLines(file)
-				.Select(l => l.Split(';')[0].Trim())
-				.Where(l => !string.IsNullOrEmpty(l))
+			// Line numbers are kept so that errors can point at the line they concern.
+			foreach (var (line, lineNo) in File.ReadAllLines(file)
+				.Select((l, i) => (Text: l.Split(';')[0].Trim(), No: i + 1))
+				.Where(l => !string.IsNullOrEmpty(l.Text))
 			) {
 				var section = rxIcoName.Match(line);
 				if (section.Success) {
 					ico = new() {
+						Name = section.Groups[1].Value,
 						DestFile = Path.Combine(folder, section.Groups[1].Value),
 						Kind = section.Groups[2].Value == "png" ? OutputKind.Png : OutputKind.Ico,
 						LookupFolder = folder,
+						Line = lineNo,
 					};
 					prj.outputs.Add(ico);
 					continue;
@@ -42,7 +46,7 @@ namespace IconPackager {
 				if (ico is not null) {
 					var prop = rxIcoProp.Match(line);
 					if (!prop.Success) {
-						throw new IconProjectParseError("Parse Error: " + line);
+						throw new IconProjectParseError("Parse Error: " + line, lineNo);
 					}
 					string p = prop.Groups[1].Value;
 					string v = prop.Groups[4].Value;
@@ -51,6 +55,15 @@ namespace IconPackager {
 					switch (p) {
 						case "source":
 							ico.LookupFolder = Path.Combine(ico.LookupFolder, v);
+							continue;
+
+						case "output":
+							ico.Output = v switch {
+								"newest" => OutputMode.Newest,
+								"overwrite" => OutputMode.Overwrite,
+								"none" => OutputMode.None,
+								_ => throw new IconProjectParseError("Parse Error: output must be newest, overwrite or none: " + v, lineNo),
+							};
 							continue;
 
 						case "pack":
@@ -71,9 +84,9 @@ namespace IconPackager {
 
 					var param = rxIcoParam.Match(v);
 					if (!param.Success) {
-						throw new IconProjectParseError("Parse Error: " + v);
+						throw new IconProjectParseError("Parse Error: " + v, lineNo);
 					}
-					var frame = new IconFrame(param.Groups[1].Value);
+					var frame = new IconFrame(param.Groups[1].Value) { Line = lineNo };
 					foreach (var (par, val) in param.Groups[2].Captures
 						.Select((c, i) => (c.Value, param.Groups[3].Captures[i].Value))) {
 						switch (par) {
@@ -83,7 +96,7 @@ namespace IconPackager {
 							case "snip":
 								var crop = rxCrop.Match(val);
 								if (!crop.Success) {
-									throw new IconProjectParseError("Parse Error: " + val);
+									throw new IconProjectParseError("Parse Error: " + val, lineNo);
 								}
 								// mm default
 								// in * 25.4 => mm
@@ -108,7 +121,7 @@ namespace IconPackager {
 					}
 					// A PNG holds one image, so a second frame of a different size has nowhere to go.
 					if (ico.Kind == OutputKind.Png && ico.Frames.Count > 0 && !ico.Frames.ContainsKey((size, depth))) {
-						throw new IconProjectParseError("Parse Error: a .png output takes a single frame: " + line);
+						throw new IconProjectParseError("Parse Error: a .png output takes a single frame: " + line, lineNo);
 					}
 					ico.Frames[(size, depth)] = frame;
 				}
@@ -116,17 +129,30 @@ namespace IconPackager {
 			return prj;
 		}
 
-		private IconProject() { }
+		private IconProject(string file) {
+			this.file = file;
+		}
 
 		/// <summary>
-		/// Renders every output and writes each one that has at least one frame. Problems are reported on
-		/// standard error, one line each, and rendering carries on with the next frame or output.
+		/// Renders every output that is due under its <c>output</c> policy and writes each one that has at
+		/// least one frame. Problems are reported on standard error in MSBuild's format, one line each, and
+		/// rendering carries on with the next frame or output.
 		/// </summary>
 		/// <returns>True when every frame of every output was rendered and written.</returns>
 		public bool RenderAll() {
 			bool ok = true;
 			foreach (var output in outputs) {
+				if (output.Output == OutputMode.None) {
+					Console.WriteLine($"{output.Name} skipped (output=none)");
+					continue;
+				}
+				if (IsUpToDate(output)) {
+					Console.WriteLine($"{output.Name} is up to date");
+					continue;
+				}
+
 				var frames = new List<(int Size, byte[] Data)>();
+				bool complete = true;
 				foreach (var ((size, depth), frame) in output.Frames) {
 					try {
 						using var img = LoadImage(output.LookupFolder, frame, (int)size);
@@ -134,36 +160,53 @@ namespace IconPackager {
 						frames.Add(((int)size, asPng ? img.GetPngData() : img.GetBmpData((int)depth)));
 					}
 					catch (Exception ex) {
-						Console.Error.WriteLine($"{output.DestFile}: {(int)size}px frame from {frame.File}: {ex.Message}");
-						ok = false;
+						Report.Error(file, frame.Line, Report.Frame, $"{output.Name}: {(int)size}px frame from {frame.File}: {ex.Message}");
+						complete = false;
 					}
 				}
+				ok &= complete;
 
 				if (frames.Count == 0) {
-					Console.Error.WriteLine($"{output.DestFile}: no frames rendered, not written");
+					Report.Error(file, output.Line, Report.Empty, $"{output.Name}: no frames rendered, not written");
 					ok = false;
 					continue;
 				}
 				try {
-					using var outfile = new FileStream(output.DestFile, FileMode.Create);
-					if (output.Kind == OutputKind.Png) {
-						outfile.Write(frames[0].Data);
-					}
-					else {
-						var iconFile = new IconBuilder();
-						foreach (var (size, data) in frames) {
-							iconFile.Add(size, data);
+					using (var outfile = new FileStream(output.DestFile, FileMode.Create)) {
+						if (output.Kind == OutputKind.Png) {
+							outfile.Write(frames[0].Data);
 						}
-						using var writer = new BinaryWriter(outfile);
-						iconFile.Write(writer);
+						else {
+							var iconFile = new IconBuilder();
+							foreach (var (size, data) in frames) {
+								iconFile.Add(size, data);
+							}
+							using var writer = new BinaryWriter(outfile);
+							iconFile.Write(writer);
+						}
 					}
+					// An output missing a frame is still useful, but it must not pass as up to date next time,
+					// or the failure would go unreported until a source changed. Dating it back guarantees a rerun.
+					if (!complete) File.SetLastWriteTimeUtc(output.DestFile, DateTime.UnixEpoch);
 				}
 				catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
-					Console.Error.WriteLine($"{output.DestFile}: {ex.Message}");
+					Report.Error(file, output.Line, Report.Write, $"{output.Name}: {ex.Message}");
 					ok = false;
 				}
 			}
 			return ok;
+		}
+
+		/// <summary>
+		/// Applies the section's <c>output</c> policy to an existing file: <c>overwrite</c> always renders,
+		/// and <c>newest</c> renders when the file is missing or older than the project file or any frame
+		/// source. A missing source counts as newer, so its error is reported.
+		/// </summary>
+		private bool IsUpToDate(IconDef output) {
+			if (output.Output == OutputMode.Overwrite || !File.Exists(output.DestFile)) return false;
+			var written = File.GetLastWriteTimeUtc(output.DestFile);
+			var sources = output.Frames.Values.Select(f => Path.Combine(output.LookupFolder, f.File)).Prepend(file);
+			return sources.All(s => File.Exists(s) && File.GetLastWriteTimeUtc(s) <= written);
 		}
 
 		private static Bitmap LoadImage(string lookup, IconFrame frame, int size) {
@@ -296,18 +339,27 @@ namespace IconPackager {
 		}
 	}
 
-	class IconProjectParseError(string message) : Exception(message) { }
+	/// <summary>A project file line that could not be understood. <see cref="Line"/> is 1-based.</summary>
+	class IconProjectParseError(string message, int line) : Exception(message) {
+		public int Line { get; } = line;
+	}
 
 	/// <summary>One output file of a project: an icon holding several frames, or a single PNG image.</summary>
 	class IconDef {
+		/// <summary>The section name as written in the project file, used in messages.</summary>
+		public string Name = "";
 		public string DestFile = "";
 		public OutputKind Kind = OutputKind.Ico;
+		public OutputMode Output = OutputMode.Newest;
 		public string LookupFolder = "";
 		public Dictionary<(IconSize, IconDepth), IconFrame> Frames = [];
-
+		/// <summary>The project file line the section starts on.</summary>
+		public int Line;
 	}
 	class IconFrame(string source) {
 		public string File { get; set; } = source;
+		/// <summary>The project file line the frame is defined on.</summary>
+		public int Line { get; set; }
 		public string? SvgElement { get; set; }
 		public RectangleF? Crop { get; set; }
 		public Color Mask { get; set; } = Color.Magenta;
@@ -316,6 +368,15 @@ namespace IconPackager {
 	enum OutputKind {
 		Ico,
 		Png,
+	}
+	/// <summary>When an output is rendered and written. Set per section with <c>output=</c>.</summary>
+	enum OutputMode {
+		/// <summary>When it is missing, or older than the project file or any frame source. The default.</summary>
+		Newest,
+		/// <summary>On every run.</summary>
+		Overwrite,
+		/// <summary>Never: the section is skipped entirely.</summary>
+		None,
 	}
 	enum IconSize {
 		S16 = 16,

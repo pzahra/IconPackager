@@ -1,13 +1,14 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFrameworks>netstandard2.1;net10.0</TargetFrameworks>
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Description>Writes multi-resolution Windows .ico files from encoded frames: bitmaps with a transparency mask below 256 px and a PNG at 256 px. The library behind the IconPackager build step, for tools that produce icons themselves.</Description>
+    <PackageTags>ico;icon;windows;png;bitmap</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Svg" Version="3.4.7" />
     <PackageReference Include="System.Drawing.Common" Version="10.0.3" />
   </ItemGroup>
 

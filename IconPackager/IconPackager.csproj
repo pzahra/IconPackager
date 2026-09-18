@@ -3,9 +3,24 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
+    <RollForward>LatestMajor</RollForward>
     <Nullable>enable</Nullable>
     <StartupObject>IconPackager.Program</StartupObject>
     <ProduceReferenceAssembly>False</ProduceReferenceAssembly>
+  </PropertyGroup>
+
+  <!--
+    The package is a build step, not a library. It carries the published app under tools/ and the MSBuild
+    files under build/, with no lib/ folder and no package dependencies, so a project that references it
+    gets its icons built before it compiles and nothing copied into its own output.
+  -->
+  <PropertyGroup>
+    <Description>Builds multi-resolution Windows .ico files from PNG, BMP and SVG artwork during the build, driven by an icons.ini project file next to the artwork. Add the package and an icons.ini; the icons are rebuilt whenever the artwork changes.</Description>
+    <PackageTags>ico;icon;windows;svg;png;msbuild;build</PackageTags>
+    <DevelopmentDependency>true</DevelopmentDependency>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);PackPublishedTool</TargetsForTfmSpecificContentInPackage>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,5 +31,22 @@
   <ItemGroup>
     <ProjectReference Include="..\IcoNet\IcoNet.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- Listed explicitly: items from the SDK's glob carry a RecursiveDir that would nest them as build\build\. -->
+    <None Remove="build\**" />
+    <None Include="build\IconPackager.props;build\IconPackager.targets" Pack="true" PackagePath="build\" />
+  </ItemGroup>
+
+  <!--
+    Publishes the app and puts the whole publish folder under tools/<tfm>/ in the package. Pack appends
+    each file's folder below the publish root itself, so runtimes/ subfolders keep their place.
+  -->
+  <Target Name="PackPublishedTool" DependsOnTargets="Publish">
+    <ItemGroup>
+      <_PublishedToolFile Include="$(PublishDir)**" Exclude="$(PublishDir)**\*.pdb;$(PublishDir)**\*.xml" />
+      <TfmSpecificPackageFile Include="@(_PublishedToolFile)" PackagePath="tools\$(TargetFramework)\" />
+    </ItemGroup>
+  </Target>
 
 </Project>

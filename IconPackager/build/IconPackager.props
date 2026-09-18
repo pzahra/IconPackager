@@ -1,0 +1,8 @@
+<Project>
+
+  <PropertyGroup>
+    <!-- Every icons.ini under the project folder is built. Set false to list projects by hand. -->
+    <EnableDefaultIconProjects Condition="'$(EnableDefaultIconProjects)' == ''">true</EnableDefaultIconProjects>
+  </PropertyGroup>
+
+</Project>

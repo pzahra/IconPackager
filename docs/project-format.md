@@ -55,8 +55,18 @@ a parse error.
 | Property | Value | Meaning |
 |---|---|---|
 | `source` | folder | Where the section's frame files are looked up. Relative to the project file, or absolute. Each section starts at the project file's folder, and repeating `source` appends to the previous folder rather than replacing it. |
+| `output` | `newest`, `overwrite` or `none` | When the output is built. See below. The default is `newest`. |
 | `pack` | frame | A 256 × 256 frame, stored PNG-compressed. Equivalent to `256-true`. |
 | `<size>-<depth>` | frame | One frame. `size` is one of 16, 24, 32, 48, 64, 128 or 256. `depth` is `bw`, `pal`, `rgb` or `true`. |
+
+`output` decides whether the section is built at all:
+
+- `newest` renders when the output is missing, or when the project file or any of the section's frame
+  files is newer than it. Nothing is rendered, and nothing is reported, when the output is already up to
+  date. A frame file that is missing counts as newer, so the error is reported.
+- `overwrite` renders on every run.
+- `none` skips the section entirely: nothing is rendered, written or checked. Use it to park an output
+  without deleting its definition.
 
 Frames are written to the icon in the order they appear. Size and depth together identify a frame: a
 second line with the same size and depth replaces the first, while two depths at the same size give two
@@ -153,14 +163,24 @@ Both are parsed and validated but do not yet affect the output. The defaults are
 
 ## Errors and exit code
 
-Problems are reported on standard error, one line each, beginning with the file they concern. The process
-exits with code 0 when every icon in every project file was built in full, 1 when anything went wrong,
-and 2 when no project file was given.
+Problems are reported on standard error, one line each, in the format MSBuild and Visual Studio recognise,
+so that a build running the tool lists them as errors and opens the project file at the line concerned:
 
-- A **project file** that does not exist, cannot be read, or contains an unrecognised line, option or crop
-  value is reported and none of its icons are written. The remaining project files on the command line
-  are still processed.
-- A **frame** that cannot be rendered (missing source file, unknown `use` name, empty region) is reported
-  and skipped. The icon is still written with its remaining frames. An output left with no frames is not
-  written.
-- An **output file** that cannot be written (missing output folder, locked file) is reported.
+```
+C:\src\app\icons.ini(5): error IP1002: app.ico: 48px frame from logo.svg: Element 'AppIcon' not found in logo.svg
+```
+
+| Code     | Meaning                                                                                                              |
+| -------- | -------------------------------------------------------------------------------------------------------------------- |
+| `IP1000` | No project file was given on the command line.                                                                       |
+| `IP1001` | A project file does not exist, cannot be read, or has an unrecognised line, option, crop or `output` value. None of its outputs are written; the other project files on the command line are still processed. |
+| `IP1002` | A frame could not be rendered: missing source file, unknown `use` name, empty region. The frame is skipped and the output is still written with its remaining frames. |
+| `IP1003` | An output had no frames left to write.                                                                               |
+| `IP1004` | An output file could not be written: missing folder, locked file.                                                    |
+| `IP1005` | The tool failed with an unexpected exception. The stack trace follows the message.                                   |
+
+An output written without one of its frames is dated back to 1970, so under `output=newest` it never
+counts as up to date and the failure is reported again on each run until it is fixed.
+
+The exit code is 0 when every output in every project file was built in full, 1 when any project file,
+frame or output failed, 2 when no project file was given, and 3 for `IP1005`.

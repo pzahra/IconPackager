@@ -1,0 +1,45 @@
+<Project>
+
+  <!--
+    Icon projects to build. Any icons.ini in the project tree is picked up by default; other files are
+    added with <IconProject Include="assets\tray.ini" />. The glob lives here rather than in the .props
+    file so that the SDK's default excludes (bin, obj) are already defined.
+  -->
+  <ItemGroup Condition="'$(EnableDefaultIconProjects)' == 'true'">
+    <IconProject Include="**\icons.ini" Exclude="$(DefaultItemExcludes);$(DefaultExcludesInProjectFolder)" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <IconPackagerToolPath Condition="'$(IconPackagerToolPath)' == ''">$(MSBuildThisFileDirectory)..\tools\net10.0\IconPackager.dll</IconPackagerToolPath>
+  </PropertyGroup>
+
+  <!--
+    Builds the icons before the compiler runs, so that an ApplicationIcon written here is ready to be
+    embedded. Design-time builds in the IDE skip it. The tool reports problems in MSBuild's error format
+    with the icons.ini line they concern, so they appear in the error list and fail the build.
+  -->
+  <Target Name="BuildIcons"
+          BeforeTargets="CoreCompile"
+          Condition="'@(IconProject)' != '' and '$(DesignTimeBuild)' != 'true'">
+
+    <Error Code="IP0001"
+           Condition="!$([MSBuild]::IsOSPlatform('Windows'))"
+           Text="IconPackager renders with System.Drawing and builds icons only on Windows. Condition the IconProject items or EnableDefaultIconProjects on $([MSBuild]::IsOSPlatform('Windows')) to skip it elsewhere." />
+
+    <PropertyGroup>
+      <_IconPackagerHost>$(DOTNET_HOST_PATH)</_IconPackagerHost>
+      <_IconPackagerHost Condition="'$(_IconPackagerHost)' == ''">dotnet</_IconPackagerHost>
+    </PropertyGroup>
+
+    <Message Importance="high" Text="Building icons from @(IconProject, ', ')" />
+    <Exec Command="&quot;$(_IconPackagerHost)&quot; &quot;$(IconPackagerToolPath)&quot; @(IconProject->'&quot;%(FullPath)&quot;', ' ')"
+          IgnoreExitCode="true">
+      <Output TaskParameter="ExitCode" PropertyName="_IconPackagerExitCode" />
+    </Exec>
+    <Error Code="IP0002"
+           Condition="'$(_IconPackagerExitCode)' != '0'"
+           Text="IconPackager exited with code $(_IconPackagerExitCode); the errors it reported above say why." />
+
+  </Target>
+
+</Project>
