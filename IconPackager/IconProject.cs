@@ -15,6 +15,9 @@ namespace PatTech.IconPackager {
 			this.outputs = outputs;
 		}
 
+		/// <summary>The outputs in the order the project file defines them.</summary>
+		public IReadOnlyList<IconDef> Outputs => outputs;
+
 		/// <summary>
 		/// Reads a project file. See <see cref="ProjectParser"/> for what it may contain. Outputs are written
 		/// to <paramref name="outputFolder"/>, or next to the project file when that is null.
@@ -77,19 +80,20 @@ namespace PatTech.IconPackager {
 			return ok;
 		}
 
-		/// <summary>Writes the output file: the single PNG, or the frames assembled into an icon.</summary>
+		/// <summary>Writes the output file, all or nothing: the single PNG, or the frames assembled into an icon.</summary>
 		private static void Write(IconDef output, List<(int Size, byte[] Data)> frames) {
-			using var outfile = new FileStream(output.DestFile, FileMode.Create);
-			if (output.Kind == OutputKind.Png) {
-				outfile.Write(frames[0].Data);
-				return;
-			}
-			var iconFile = new IconBuilder();
-			foreach (var (size, data) in frames) {
-				iconFile.Add(size, data);
-			}
-			using var writer = new BinaryWriter(outfile);
-			iconFile.Write(writer);
+			AtomicFile.Write(output.DestFile, stream => {
+				if (output.Kind == OutputKind.Png) {
+					stream.Write(frames[0].Data);
+					return;
+				}
+				var iconFile = new IconBuilder();
+				foreach (var (size, data) in frames) {
+					iconFile.Add(size, data);
+				}
+				using var writer = new BinaryWriter(stream);
+				iconFile.Write(writer);
+			});
 		}
 
 		/// <summary>The montage and exploded frames of an icon output, when asked for. A PNG output is its own picture.</summary>

@@ -139,7 +139,11 @@ namespace PatTech.IcoNet {
 		/// <param name="pixels">BGRA pixels, 4 bytes each, in the row order the mask should follow.</param>
 		/// <param name="width">Row width in pixels.</param>
 		/// <param name="opaque">The lowest alpha that counts as opaque. The default marks only fully transparent pixels.</param>
+		/// <exception cref="ArgumentOutOfRangeException"><paramref name="width"/> is less than 1.</exception>
+		/// <exception cref="ArgumentException"><paramref name="pixels"/> is not a whole number of rows of <paramref name="width"/> BGRA pixels.</exception>
 		public static IEnumerable<byte> GetMask(byte[] pixels, int width, byte opaque = 1) {
+			if (width < 1) throw new ArgumentOutOfRangeException(nameof(width), "Width must be at least 1");
+			if (pixels.Length % (width * 4) != 0) throw new ArgumentException("Pixel data is not a whole number of BGRA rows of the given width", nameof(pixels));
 			int stride = RowStride(width, 1);
 			int height = pixels.Length / (width * 4);
 			var mask = new byte[stride * height];

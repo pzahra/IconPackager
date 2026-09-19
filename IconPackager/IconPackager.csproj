@@ -37,6 +37,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="IconPackager.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Listed explicitly: items from the SDK's glob carry a RecursiveDir that would nest them as build\build\. -->
     <None Remove="build\**" />
     <None Include="build\PatTech.IconPackager.props;build\PatTech.IconPackager.targets" Pack="true" PackagePath="build\" />

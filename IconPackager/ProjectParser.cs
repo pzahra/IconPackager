@@ -14,11 +14,12 @@ namespace PatTech.IconPackager {
 	/// carrying the line it was found on.
 	/// </summary>
 	static class ProjectParser {
-		static readonly Regex rxIcoName = new(@"\[(.*\.(ico|png))\]");
-		static readonly Regex rxIcoProp = new(@"(source|output|pack|(16|24|32|48|64|128|256)-(bw|pal|rgb|true))\s*=\s*(.*)");
-		// file|param value|param value...  Anchored so that a parameter that fails to parse is reported
-		// rather than silently dropped. Values run to the next '|' so element names may contain spaces.
-		static readonly Regex rxIcoParam = new(@"^([^|]+?)\s*(?:\|\s*(use|snip|mask|invert)\s+([^|]+?)\s*)*$");
+		// Anchored, so that trailing text or an unknown property is reported rather than passed over, and
+		// case-insensitive on the names; values keep their case, since an element name is one.
+		static readonly Regex rxIcoName = new(@"^\[(.+\.(ico|png))\]$", RegexOptions.IgnoreCase);
+		static readonly Regex rxIcoProp = new(@"^(source|output|pack|(16|24|32|48|64|128|256)-(bw|pal|rgb|true))\s*=\s*(.*)$", RegexOptions.IgnoreCase);
+		// file|param value|param value...  Values run to the next '|' so element names may contain spaces.
+		static readonly Regex rxIcoParam = new(@"^([^|]+?)\s*(?:\|\s*(use|snip|mask|invert)\s+([^|]+?)\s*)*$", RegexOptions.IgnoreCase);
 		static readonly Regex rxCrop = new(@"^(?:(\d+(?:\.\d+)?)(|mm|in|px)(?:[, ]+|$)){4}$");
 
 		/// <param name="file">The project file.</param>
@@ -26,6 +27,7 @@ namespace PatTech.IconPackager {
 		public static IconProject Parse(string file, string? outputFolder = null) {
 			if (!File.Exists(file)) throw new FileNotFoundException("Project file not found", file);
 			var outputs = new List<IconDef>();
+			var destinations = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 			IconDef? ico = null;
 			string folder = Path.GetDirectoryName(Path.GetFullPath(file))!;
 			// Line numbers are kept so that errors can point at the line they concern.
@@ -35,31 +37,36 @@ namespace PatTech.IconPackager {
 			) {
 				var section = rxIcoName.Match(line);
 				if (section.Success) {
+					string name = section.Groups[1].Value;
 					ico = new() {
-						Name = section.Groups[1].Value,
-						DestFile = Path.Combine(outputFolder ?? folder, section.Groups[1].Value),
-						Kind = section.Groups[2].Value == "png" ? OutputKind.Png : OutputKind.Ico,
+						Name = name,
+						DestFile = Path.Combine(outputFolder ?? folder, name),
+						Kind = section.Groups[2].Value.Equals("png", StringComparison.OrdinalIgnoreCase) ? OutputKind.Png : OutputKind.Ico,
 						LookupFolder = folder,
 						Line = lineNo,
 					};
+					// Two sections for one file would overwrite or skip each other, however the name is spelt.
+					if (!destinations.Add(FullPath(ico.DestFile, name, lineNo))) {
+						throw new IconProjectParseError("Parse Error: output already defined: " + name, lineNo);
+					}
 					outputs.Add(ico);
 					continue;
 				}
-				// Lines before the first section are ignored.
-				if (ico is null) continue;
+				// Only a section can open the file, so anything else here is a heading that did not parse.
+				if (ico is null) throw new IconProjectParseError("Parse Error: expected a [name.ico] or [name.png] section: " + line, lineNo);
 
 				var prop = rxIcoProp.Match(line);
 				if (!prop.Success) {
 					throw new IconProjectParseError("Parse Error: " + line, lineNo);
 				}
-				string p = prop.Groups[1].Value;
+				string p = prop.Groups[1].Value.ToLowerInvariant();
 				string v = prop.Groups[4].Value;
 				switch (p) {
 					case "source":
 						ico.LookupFolder = Path.Combine(ico.LookupFolder, v);
 						continue;
 					case "output":
-						ico.Output = v switch {
+						ico.Output = v.ToLowerInvariant() switch {
 							"newest" => OutputMode.Newest,
 							"overwrite" => OutputMode.Overwrite,
 							"none" => OutputMode.None,
@@ -70,15 +77,29 @@ namespace PatTech.IconPackager {
 
 				var (size, depth) = p == "pack"
 					? (IconSize.S256, IconDepth.True)
-					: ((IconSize)int.Parse(prop.Groups[2].Value, CultureInfo.InvariantCulture), ParseDepth(prop.Groups[3].Value));
+					: ((IconSize)int.Parse(prop.Groups[2].Value, CultureInfo.InvariantCulture), ParseDepth(prop.Groups[3].Value.ToLowerInvariant()));
 				var frame = ParseFrame(v, lineNo);
-				// A PNG holds one image, so a second frame of a different size has nowhere to go.
-				if (ico.Kind == OutputKind.Png && ico.Frames.Count > 0 && !ico.Frames.ContainsKey((size, depth))) {
-					throw new IconProjectParseError("Parse Error: a .png output takes a single frame: " + line, lineNo);
+				if (ico.Kind == OutputKind.Png && ico.Frames.Count > 0) {
+					// A PNG holds one image, so a second size has nowhere to go; a later line at the same size,
+					// whatever its depth, replaces the earlier one, since the depth does not reach the file.
+					if (ico.Frames.Keys.First().Item1 != size) {
+						throw new IconProjectParseError("Parse Error: a .png output takes a single frame: " + line, lineNo);
+					}
+					ico.Frames.Clear();
 				}
 				ico.Frames[(size, depth)] = frame;
 			}
 			return new IconProject(file, outputs);
+		}
+
+		/// <summary>The full path of an output, so that two spellings of one file can be told apart.</summary>
+		private static string FullPath(string path, string name, int lineNo) {
+			try {
+				return Path.GetFullPath(path);
+			}
+			catch (Exception ex) when (ex is ArgumentException or NotSupportedException) {
+				throw new IconProjectParseError("Parse Error: not a file name: " + name, lineNo);
+			}
 		}
 
 		private static IconDepth ParseDepth(string token) => token switch {
@@ -98,7 +119,7 @@ namespace PatTech.IconPackager {
 			var frame = new IconFrame(param.Groups[1].Value) { Line = lineNo };
 			foreach (var (par, val) in param.Groups[2].Captures
 				.Select((c, i) => (c.Value, param.Groups[3].Captures[i].Value))) {
-				switch (par) {
+				switch (par.ToLowerInvariant()) {
 					case "use":
 						frame.SvgElement = val;
 						break;

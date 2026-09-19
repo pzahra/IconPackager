@@ -43,58 +43,65 @@ namespace PatTech.IconPackager {
 			}
 			if (inputs.Count == 0) return Usage("No project or icon file given.");
 
-			// A multi-targeted project builds its frameworks in parallel and runs the tool once for each, so
-			// runs are serialised to keep two of them from writing the same icon at the same time.
-			using var mutex = new Mutex(false, @"Local\IconPackager");
 			try {
-				mutex.WaitOne();
-			}
-			catch (AbandonedMutexException) {
-				// The previous holder died; ownership has passed to this run.
-			}
-
-			try {
-				if (options.OutputFolder != null) {
-					try {
-						Directory.CreateDirectory(options.OutputFolder);
-					}
-					catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
-						Report.Error(options.OutputFolder, 0, Report.Write, ex.Message);
-						return 1;
-					}
+				// A multi-targeted project builds its frameworks in parallel and runs the tool once for each, so
+				// runs are serialised to keep two of them from writing the same icon at the same time.
+				using var mutex = new Mutex(false, @"Local\IconPackager");
+				try {
+					mutex.WaitOne();
 				}
-
-				bool ok = true;
-				foreach (var input in inputs) {
-					if (input.EndsWith(".ico", StringComparison.OrdinalIgnoreCase)) {
-						// An icon named by itself gets both pictures; a switch narrows that to one.
-						bool both = !options.Montage && !options.Explode;
-						ok &= IconInspector.Inspect(input, options.OutputFolder, options.Montage || both, options.Explode || both);
-						continue;
-					}
-					try {
-						ok &= IconProject.FromFile(input, options.OutputFolder).RenderAll(options);
-					}
-					catch (IconProjectParseError ex) {
-						Report.Error(input, ex.Line, Report.Project, ex.Message);
-						ok = false;
-					}
-					catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
-						Report.Error(input, 0, Report.Project, ex.Message);
-						ok = false;
-					}
+				catch (AbandonedMutexException) {
+					// The previous holder died; ownership has passed to this run.
 				}
-				return ok ? 0 : 1;
+				try {
+					return Run(inputs, options);
+				}
+				finally {
+					mutex.ReleaseMutex();
+				}
 			}
 			catch (Exception ex) {
-				// Anything else is a bug in the tool. Reported in the same format so a build shows it as one
-				// error, with the stack trace following as plain output.
+				// Anything else, the mutex included, is a bug in the tool or a broken machine. Reported in the
+				// same format so a build shows it as one error, with the stack trace following as plain output.
 				Report.Error("IconPackager", 0, Report.Unexpected, ex.ToString());
 				return 3;
 			}
-			finally {
-				mutex.ReleaseMutex();
+		}
+
+		/// <summary>Builds or pictures each input in turn.</summary>
+		/// <returns>The exit code: 0 when everything succeeded, 1 otherwise.</returns>
+		private static int Run(List<string> inputs, Options options) {
+			if (options.OutputFolder != null) {
+				try {
+					Directory.CreateDirectory(options.OutputFolder);
+				}
+				catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+					Report.Error(options.OutputFolder, 0, Report.Write, ex.Message);
+					return 1;
+				}
 			}
+
+			bool ok = true;
+			foreach (var input in inputs) {
+				if (input.EndsWith(".ico", StringComparison.OrdinalIgnoreCase)) {
+					// An icon named by itself gets both pictures; a switch narrows that to one.
+					bool both = !options.Montage && !options.Explode;
+					ok &= IconInspector.Inspect(input, options.OutputFolder, options.Montage || both, options.Explode || both);
+					continue;
+				}
+				try {
+					ok &= IconProject.FromFile(input, options.OutputFolder).RenderAll(options);
+				}
+				catch (IconProjectParseError ex) {
+					Report.Error(input, ex.Line, Report.Project, ex.Message);
+					ok = false;
+				}
+				catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) {
+					Report.Error(input, 0, Report.Project, ex.Message);
+					ok = false;
+				}
+			}
+			return ok ? 0 : 1;
 		}
 
 		private static int Usage(string problem) {

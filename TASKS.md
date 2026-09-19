@@ -7,20 +7,16 @@ as they land; move anything that turns out to be wrong or unwanted to the bottom
 
 These affect anyone using the build step, and each is a small change.
 
-- [ ] **Write outputs atomically.** `RenderAll` truncates the destination with `FileMode.Create` and then
-  writes into it. An interrupted or failed write leaves a corrupt file with a fresh timestamp, which
-  `newest` then treats as up to date forever. Write to a temporary file beside the destination and move it
-  over the old one on success; on failure delete the temporary file and leave the old output untouched.
-  `IconPackager/IconProject.cs`, `RenderAll` and `IsUpToDate`.
+- [x] **Write outputs atomically.** `AtomicFile.Write` puts the content in a temporary file beside the
+  destination and moves it into place once complete; a failure deletes the temporary file and leaves the
+  old output untouched. Icons, PNG outputs, montages and exploded frames all go through it.
 - [x] **Report bad colours as parse errors.** `ColorTranslator.FromHtml` throws for a bad `mask` or
   `invert` value, which escapes `FromFile` as a plain exception, becomes IP1005 with exit code 3, and
   aborts the remaining project files. Catch it in the parser and throw `IconProjectParseError` with the
   line number, so it is IP1001 and processing continues. `docs/project-format.md` already describes the
   intended behaviour. `IconPackager/ProjectParser.cs`, `ParseKey`.
-- [ ] **Anchor the project file grammar.** `rxIcoName` and `rxIcoProp` are unanchored, so
-  `[app.ico] trailing text` and `boguspack=logo.svg` are accepted, and `[App.ICO]` before the first
-  section is silently ignored rather than rejected. Anchor both with `^…$`, match extensions and property
-  names case-insensitively, and add a test for each case. `IconPackager/ProjectParser.cs`, the regex fields.
+- [x] **Anchor the project file grammar.** Both regexes are anchored and case-insensitive on names, a line
+  before the first section is a parse error, and `ParserTests` covers each case.
 - [ ] **Rename the MSBuild target.** `BuildIcons` is generic enough to collide with a consumer's own target
   or another package's, and MSBuild silently replaces a same-named target. Rename it
   `IconPackagerBuildIcons`; the properties are already prefixed. `IconPackager/build/PatTech.IconPackager.targets`.
@@ -31,29 +27,22 @@ These affect anyone using the build step, and each is a small change.
 
 ## P2: robustness and tests
 
-- [ ] **Add a test project.** Nothing is covered today. Start with the parser (line numbers on errors,
-  `output=` values, each error code), `IsUpToDate` against real timestamps, the atomic write, and the byte
-  layout `IconBuilder` produces for a two-frame icon. xunit, `IconPackager.Tests/`, added to the solution.
-- [ ] **Validate frame data in `IconBuilder`.** `IconEntry` accepts any buffer over 40 bytes as a DIB and
-  any buffer starting with four PNG bytes as a PNG, so corrupt data or a frame whose encoded size disagrees
-  with `size` is written without complaint. Check the full 8-byte PNG signature and the IHDR dimensions,
-  and for a DIB check the header size, `biWidth == size`, `biHeight == 2 * size` and a bit count of 1, 4,
-  8, 24 or 32. Then the `ArgumentException` promised in the XML docs is true. `IcoNet/IconBuilder.cs:89-104`.
-- [ ] **Reject duplicate destinations.** Two sections that resolve to the same file, such as `[app.ico]`
-  twice or `[a.ico]` and `[./a.ico]`, are not detected: the second may be skipped as up to date or overwrite
-  the first depending on `output=`. Make it a parse error on the second section. `IconPackager/ProjectParser.cs`.
-- [ ] **PNG sections should key on size only.** A `.png` section rejects a second frame whose (size, depth)
-  key differs, so `48-true` followed by `48-rgb` is an error even though the docs say depth is accepted and
-  only a second size is rejected. Compare sizes, and let the later line replace the earlier one.
-  `IconPackager/ProjectParser.cs`, the "a .png output takes a single frame" check.
-- [ ] **Move the mutex inside the catch-all.** `new Mutex` and `WaitOne` run before the `try`, so an ACL or
-  platform failure escapes as an unhandled exception instead of IP1005 with exit code 3.
-  `IconPackager/Program.cs`.
-- [ ] **Validate `GetMask` arguments.** A zero `width` divides by zero and a `pixels` buffer that is not a
-  whole number of BGRA rows is silently truncated. Throw `ArgumentException` for both; it is public API.
-  `IcoNet/BitmapExt.cs`, `GetMask`.
-- [ ] **Bound the frame count.** `ImageCount` casts a list count to `short`; the ICO header field is an
-  unsigned 16-bit count. Use `ushort` and refuse to add a frame beyond that. `IcoNet/IconBuilder.cs:17`.
+- [x] **Add a test project.** `IconPackager.Tests/`, xunit, in the solution: the parser and its error
+  lines, rendering against real timestamps, the atomic write, the pictures, an SVG element, the byte
+  layout of a two-frame icon, frame validation, and the reader's decoding.
+- [x] **Validate frame data in `IconBuilder`.** A PNG frame must carry the full signature and an IHDR of
+  the frame's size; a DIB must have a 40-byte header, the frame's width, twice its height, a depth of 1, 4,
+  8, 24 or 32, and enough bytes for its rows and mask.
+- [x] **Reject duplicate destinations.** Sections are compared by full path, without regard to case, and
+  the second is a parse error.
+- [x] **PNG sections should key on size only.** A later line at the same size replaces the earlier one; a
+  second size is still a parse error.
+- [x] **Move the mutex inside the catch-all.** A mutex failure is now IP1005 with exit code 3.
+- [x] **Validate `GetMask` arguments.** A width below 1 is `ArgumentOutOfRangeException`; a buffer that is
+  not whole rows is `ArgumentException`.
+- [x] **Bound the frame count.** `ImageCount` is a `ushort` written to the 16-bit directory field, and
+  `Add` refuses a frame past `IconBuilder.MaxFrames`, set to 32, with `InvalidOperationException`. That is
+  far below the format limit but more than any real icon carries.
 
 ## P3: improvements
 

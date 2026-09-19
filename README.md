@@ -186,12 +186,15 @@ Pixels that would invert the screen can be painted a colour of your choice or le
 | `IconPackager/build/`                 | The `.props` and `.targets` the package adds to a consuming project.             |
 | `IconPackager/Properties/project.ini` | A sample project file showing the syntax. Its assets are not included.           |
 | `IcoNet/`                             | The library: `IconBuilder` writes `.ico` files, `IconReader` reads them, `BitmapExt` prepares frames. |
+| `IconPackager.Tests/`                 | xunit tests for the parser, rendering, the atomic write and the library.        |
 | `Directory.Build.props`               | Version, author and licence shared by both packages.                             |
 | `docs/`                               | The project file format reference.                                               |
 | `eel.svg`                             | A sample Inkscape drawing with a `laughing-eel` element to try `use` on.         |
 | `icon/`                               | The project's own icon: `icon.svg`, the `icons.ini` that renders it, and the rendered `icon.png` and `icon.ico` that the packages and the tool embed. |
 
 ## Building the packages
+
+`dotnet test` runs the suite in `IconPackager.Tests/`. Then:
 
 ```
 dotnet pack -c Release -o artifacts

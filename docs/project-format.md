@@ -43,14 +43,17 @@ A section starts an output file, and its extension says what kind:
 
 - `[name.ico]` builds an icon holding every frame listed in the section.
 - `[name.png]` writes a single PNG image, for uses that want one bitmap rather than an icon, such as the
-  128 px package icon NuGet recommends. The section takes exactly one frame; listing frames of two
-  different sizes is a parse error. The depth is accepted, but the PNG is always 32-bit with alpha.
+  128 px package icon NuGet recommends. The section takes one frame: a later line at the same size
+  replaces the earlier one, and a second size is a parse error. The depth is accepted, but the PNG is
+  always 32-bit with alpha.
 
-The name is a path relative to the project file's folder, so `[icons/app.ico]` writes into an `icons`
-subfolder, which must already exist.
+The name is a path relative to the project file's folder, or to the `--out` folder when one is given, so
+`[icons/app.ico]` writes into an `icons` subfolder, which must already exist. Two sections that name the
+same file, however it is spelt, are a parse error on the second.
 
-Lines before the first section are ignored. A line inside a section that is not a recognised property is
-a parse error.
+The first line that is not blank or a comment must start a section. A line before it, or a line inside a
+section that is not a recognised property, is a parse error. Section names, property names, depths and
+option names are matched without regard to case; values keep theirs.
 
 ## Properties
 
@@ -69,6 +72,10 @@ a parse error.
 - `overwrite` renders on every run.
 - `none` skips the section entirely: nothing is rendered, written or checked. Use it to park an output
   without deleting its definition.
+
+An output is written to a temporary file beside its destination and moved into place once complete, so a
+failed or interrupted write leaves the previous file untouched rather than half written with a fresh
+timestamp.
 
 Frames are written to the icon in the order they appear. Size and depth together identify a frame: a
 second line with the same size and depth replaces the first, while two depths at the same size give two

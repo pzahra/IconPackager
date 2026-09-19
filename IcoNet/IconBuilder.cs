@@ -13,18 +13,26 @@ namespace PatTech.IcoNet {
 	/// the directory entry's depth and palette size are read from the frame itself.
 	/// </remarks>
 	public class IconBuilder {
-		/// <summary>Number of frames added so far.</summary>
-		public short ImageCount => (short)images.Count;
+		/// <summary>
+		/// The most frames one icon may hold. The file format allows far more, up to 65535, but no real icon
+		/// comes close, so this guards against a runaway caller rather than the format.
+		/// </summary>
+		public const int MaxFrames = 32;
+
+		/// <summary>Number of frames added so far, at most <see cref="MaxFrames"/>. Written to the directory as a 16-bit count.</summary>
+		public ushort ImageCount => (ushort)images.Count;
 
 		private readonly List<IconEntry> images = new List<IconEntry>();
 
 		/// <summary>Adds a square frame.</summary>
 		/// <param name="size">Width and height in pixels, from 1 to 256.</param>
-		/// <param name="data">The encoded frame: a PNG file, or a DIB from <see cref="BitmapExt.GetBmpData(System.Drawing.Bitmap, int)"/>.</param>
+		/// <param name="data">The encoded frame: a PNG file, or a DIB from <see cref="BitmapExt.GetBmpData(System.Drawing.Bitmap, int)"/>, of <paramref name="size"/> pixels.</param>
 		/// <exception cref="ArgumentOutOfRangeException"><paramref name="size"/> is outside 1 to 256.</exception>
-		/// <exception cref="ArgumentException"><paramref name="data"/> is neither a PNG file nor a DIB.</exception>
+		/// <exception cref="ArgumentException"><paramref name="data"/> is neither a PNG file nor a DIB, or is not <paramref name="size"/> pixels square.</exception>
+		/// <exception cref="InvalidOperationException">The icon already holds <see cref="MaxFrames"/> frames.</exception>
 		public void Add(int size, byte[] data) {
 			if (size < 1 || size > 256) throw new ArgumentOutOfRangeException(nameof(size), "Size must be between 1 and 256");
+			if (images.Count == MaxFrames) throw new InvalidOperationException($"An icon holds at most {MaxFrames} frames");
 			if (size == 256) size = 0;
 			images.Add(new IconEntry(this, (byte)size, data));
 		}
@@ -87,25 +95,62 @@ namespace PatTech.IcoNet {
 			/// <param name="owner">The icon the entry belongs to; used to compute <see cref="Offset"/>.</param>
 			/// <param name="size">Width and height in pixels, with 0 standing for 256.</param>
 			/// <param name="data">The encoded frame, a PNG file or a DIB.</param>
-			/// <exception cref="ArgumentException"><paramref name="data"/> is neither a PNG file nor a DIB.</exception>
+			/// <exception cref="ArgumentException"><paramref name="data"/> is neither a PNG file nor a DIB, or is not <paramref name="size"/> pixels square.</exception>
 			public IconEntry(IconBuilder owner, byte size, byte[] data) {
 				directory = owner;
 				this.size = size;
 				this.data = data;
+				int pixels = size == 0 ? 256 : size;
 				if (IsPng(data)) {
+					CheckPng(data, pixels);
 					BitCount = 32;
 				}
-				else if (data.Length >= 40) {
-					BitCount = BitConverter.ToInt16(data, 14); // BITMAPINFOHEADER.biBitCount
-					ColorCount = BitCount < 8 ? (byte)(1 << BitCount) : (byte)0; // 256 does not fit a byte, so 8-bit frames record 0
-				}
 				else {
-					throw new ArgumentException("Frame data is neither a PNG file nor a DIB", nameof(data));
+					BitCount = CheckDib(data, pixels);
+					ColorCount = BitCount < 8 ? (byte)(1 << BitCount) : (byte)0; // 256 does not fit a byte, so 8-bit frames record 0
 				}
 			}
 
 			private static bool IsPng(byte[] data) =>
-				data.Length > 8 && data[0] == 0x89 && data[1] == 0x50 && data[2] == 0x4E && data[3] == 0x47;
+				data.Length >= 8 && data[0] == 0x89 && data[1] == 0x50 && data[2] == 0x4E && data[3] == 0x47
+					&& data[4] == 0x0D && data[5] == 0x0A && data[6] == 0x1A && data[7] == 0x0A;
+
+			/// <summary>A PNG file opens with an IHDR chunk; its dimensions must be the frame's.</summary>
+			private static void CheckPng(byte[] data, int pixels) {
+				if (data.Length < 24 || data[12] != 'I' || data[13] != 'H' || data[14] != 'D' || data[15] != 'R') {
+					throw new ArgumentException("PNG frame has no IHDR chunk", nameof(data));
+				}
+				int width = data[16] << 24 | data[17] << 16 | data[18] << 8 | data[19];
+				int height = data[20] << 24 | data[21] << 16 | data[22] << 8 | data[23];
+				if (width != pixels || height != pixels) {
+					throw new ArgumentException($"PNG frame is {width}x{height}, not {pixels}x{pixels}", nameof(data));
+				}
+			}
+
+			/// <summary>
+			/// A DIB frame carries a BITMAPINFOHEADER whose height covers the pixel rows and the mask, at one
+			/// of the icon depths, followed by enough data for both. Returns the depth.
+			/// </summary>
+			private static short CheckDib(byte[] data, int pixels) {
+				if (data.Length < 40 || BitConverter.ToInt32(data, 0) != 40) {
+					throw new ArgumentException("Frame data is neither a PNG file nor a DIB with a BITMAPINFOHEADER", nameof(data));
+				}
+				int width = BitConverter.ToInt32(data, 4), height = BitConverter.ToInt32(data, 8);
+				short bitCount = BitConverter.ToInt16(data, 14);
+				if (width != pixels || height != 2 * pixels) {
+					throw new ArgumentException($"DIB frame is {width}x{height / 2}, not {pixels}x{pixels}", nameof(data));
+				}
+				if (bitCount != 1 && bitCount != 4 && bitCount != 8 && bitCount != 24 && bitCount != 32) {
+					throw new ArgumentException($"DIB frame is {bitCount} bits per pixel; icons take 1, 4, 8, 24 or 32", nameof(data));
+				}
+				int coloursUsed = BitConverter.ToInt32(data, 32);
+				int palette = bitCount > 8 ? 0 : coloursUsed > 0 ? Math.Min(coloursUsed, 1 << bitCount) : 1 << bitCount;
+				int rows = ((width * bitCount + 31) / 32 * 4 + (width + 31) / 32 * 4) * pixels;
+				if (data.Length < 40 + palette * 4 + rows) {
+					throw new ArgumentException("DIB frame is shorter than its pixel rows and mask", nameof(data));
+				}
+				return bitCount;
+			}
 
 			internal void WriteEntry(BinaryWriter writer) {
 				writer.Write(Width);

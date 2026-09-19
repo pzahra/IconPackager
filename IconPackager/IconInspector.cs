@@ -74,7 +74,7 @@ namespace PatTech.IconPackager {
 			if (IsCurrent(path, written)) return true;
 			try {
 				using var sheet = Montage.Render(frames);
-				sheet.Save(path, ImageFormat.Png);
+				AtomicFile.Write(path, stream => sheet.Save(stream, ImageFormat.Png));
 				return true;
 			}
 			catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ExternalException) {
@@ -97,8 +97,8 @@ namespace PatTech.IconPackager {
 				string path = Path.Combine(folder, name + ".png");
 				if (IsCurrent(path, written)) continue;
 				try {
-					if (icon.Frames[i].IsPng) File.WriteAllBytes(path, icon.Frames[i].Data);
-					else if (image != null) image.Save(path, ImageFormat.Png);
+					if (icon.Frames[i].IsPng) AtomicFile.Write(path, stream => stream.Write(icon.Frames[i].Data));
+					else if (image != null) AtomicFile.Write(path, stream => image.Save(stream, ImageFormat.Png));
 					else ok = false; // already reported when it failed to decode
 				}
 				catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ExternalException) {
