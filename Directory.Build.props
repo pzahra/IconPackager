@@ -10,10 +10,13 @@
     <RepositoryUrl>https://github.com/pzahra/IconPackager</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
   </PropertyGroup>
 
+  <!-- The icon is rendered from icon\icon.svg by the tool itself and checked in, since packing needs it before the tool is built. -->
   <ItemGroup>
     <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="\" Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)icon\icon.png" Pack="true" PackagePath="\" Visible="false" />
   </ItemGroup>
 
 </Project>

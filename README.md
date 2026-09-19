@@ -169,6 +169,7 @@ carry XML documentation, so IntelliSense describes each member.
 | `Directory.Build.props`               | Version, author and licence shared by both packages.                             |
 | `docs/`                               | The project file format reference.                                               |
 | `eel.svg`                             | A sample Inkscape drawing with a `laughing-eel` element to try `use` on.         |
+| `icon/`                               | The project's own icon: `icon.svg`, the `icons.ini` that renders it, and the rendered `icon.png` and `icon.ico` that the packages and the tool embed. |
 
 ## Building the packages
 
@@ -180,6 +181,11 @@ dotnet pack -c Release -o artifacts
 published tool under `tools/net10.0/` and the MSBuild files under `build/`, with no `lib/` folder and no
 dependencies, which is what keeps it out of a consuming project's output. The version is set once in
 `Directory.Build.props`.
+
+Both packages carry `icon/icon.png` as their package icon and the tool embeds `icon/icon.ico`. Those two
+rendered images are checked in, unlike the icons of a project that uses the build step, because the build
+needs them before the tool that renders them exists. After editing `icon/icon.svg` or `icon/icons.ini`,
+run the built tool on `icon\icons.ini` and commit the new images with the drawing.
 
 ## License
 

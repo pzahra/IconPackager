@@ -8,6 +8,8 @@
     <RootNamespace>PatTech.IconPackager</RootNamespace>
     <StartupObject>PatTech.IconPackager.Program</StartupObject>
     <ProduceReferenceAssembly>False</ProduceReferenceAssembly>
+    <!-- Rendered by this tool from ..\icon\icons.ini and checked in; rerun the tool by hand after editing the drawing. -->
+    <ApplicationIcon>..\icon\icon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <!--

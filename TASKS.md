@@ -74,8 +74,10 @@ These affect anyone using the build step, and each is a small change.
   gives consumers the analyzer warning where it belongs, in their code.
 - [x] **Apply `mask` and `invert`.** Parsed and validated since the first version, still not used when
   rendering raster frames. `IconPackager/FrameLoader.cs` and `IconPackager/Artwork.cs`.
-- [ ] **Give the packages an icon.** Add an `icons.ini` with a `[icon.png]` section rendered from `eel.svg`
-  and set `PackageIcon`, using the build step on its own repository.
+- [x] **Give the packages an icon.** `icon/icons.ini` renders `icon.png` and `icon.ico` from `icon/icon.svg`;
+  both packages set `PackageIcon` and the tool embeds the `.ico`. The rendered images are checked in rather
+  than built by the build step, since a fresh clone needs them before the tool exists. Rerun the tool by
+  hand after editing the drawing.
 - [ ] **Drop the apphost from `tools/`.** `IconPackager.exe` is a Windows x64 launcher the target never
   uses; `dotnet IconPackager.dll` does the work. `UseAppHost=false` on publish saves 160 KB per package.
 - [ ] **Offer a `dotnet tool` package for scripts.** Running the CLI outside MSBuild currently means

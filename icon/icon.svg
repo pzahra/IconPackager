@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- IconPackager project icon: a box of picture frames, the frames 48:32:16 tall like the frames of an .ico.
+     BoxOfFrames is the artwork for 32 px and up. Small, on a hidden layer, is a chunkier two-frame version
+     for 16 px, where the third frame and the leaning angles turn to mush. -->
+
+<svg
+   width="128"
+   height="128"
+   viewBox="0 0 128 128"
+   version="1.1"
+   id="svg1"
+   sodipodi:docname="icon.svg"
+   inkscape:version="1.4.2 (f4327f4, 2025-05-13)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview9"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="6.3671875"
+     inkscape:cx="63.921472"
+     inkscape:cy="77.035583"
+     inkscape:window-width="1920"
+     inkscape:window-height="1017"
+     inkscape:window-x="-8"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer2" />
+  <defs
+     id="defs1" />
+  <g
+     inkscape:label="Icon"
+     inkscape:groupmode="layer"
+     id="layer1">
+    <g
+       id="BoxOfFrames"
+       inkscape:label="BoxOfFrames">
+      <!-- The inside of the box, seen over the front edge. Drawn first so the frames stand in front of it. -->
+      <rect
+         id="BoxBack"
+         inkscape:label="Box back"
+         x="14"
+         y="82"
+         width="100"
+         height="14"
+         style="fill:#02466e;fill-opacity:1;stroke:#fe8122;stroke-opacity:1" />
+      <!-- Empty frames leaning in the box, tallest at the back, heights 84:56:28. Each is an orange border
+           over a slightly wider navy one, so it keeps a fine edge at 1 bit where orange turns white.
+           Bottoms sit at y=108, hidden by the front. -->
+      <g
+         id="Frames"
+         inkscape:label="Frames">
+        <g
+           id="Frame48"
+           inkscape:label="Frame48"
+           transform="rotate(-7,50,75.30029)">
+          <rect
+             x="17"
+             y="24"
+             width="62"
+             height="84"
+             rx="2"
+             style="fill:none;stroke:#02466e;stroke-width:13"
+             id="rect1" />
+          <rect
+             x="17"
+             y="24"
+             width="62"
+             height="84"
+             rx="2"
+             style="fill:none;stroke:#fe8122;stroke-width:10"
+             id="rect2" />
+        </g>
+        <g
+           id="Frame32"
+           inkscape:label="Frame32"
+           transform="rotate(5 82 108)">
+          <rect
+             x="61.5"
+             y="52"
+             width="41"
+             height="56"
+             rx="1.5"
+             style="fill:none;stroke:#02466e;stroke-width:10.5"
+             id="rect3" />
+          <rect
+             x="61.5"
+             y="52"
+             width="41"
+             height="56"
+             rx="1.5"
+             style="fill:none;stroke:#fe8122;stroke-width:8"
+             id="rect4" />
+        </g>
+        <g
+           id="Frame16"
+           inkscape:label="Frame16"
+           transform="rotate(-4 105 108)">
+          <rect
+             x="94.5"
+             y="80"
+             width="21"
+             height="28"
+             rx="1"
+             style="fill:none;stroke:#02466e;stroke-width:8"
+             id="rect5" />
+          <rect
+             x="94.5"
+             y="80"
+             width="21"
+             height="28"
+             rx="1"
+             style="fill:none;stroke:#fe8122;stroke-width:6"
+             id="rect6" />
+        </g>
+      </g>
+      <!-- The front of the box. A two-unit gap above it lets the background through as the front edge. -->
+      <rect
+         id="BoxFront"
+         inkscape:label="Box front"
+         x="8"
+         y="94"
+         width="112"
+         height="26"
+         rx="3"
+         style="fill:#02466e;fill-opacity:1;stroke:#fe8122;stroke-opacity:1" />
+    </g>
+  </g>
+  <!-- Hidden in Inkscape so it does not clutter the main drawing; `use Small` still renders it. -->
+  <g
+     inkscape:label="Small sizes"
+     inkscape:groupmode="layer"
+     id="layer2"
+     style="display:inline"
+     transform="translate(0,114)">
+    <g
+       id="Small"
+       inkscape:label="Small">
+      <rect
+         id="SmallBoxBack"
+         inkscape:label="Box back"
+         x="14"
+         y="80"
+         width="100"
+         height="20"
+         style="fill:#02466e;fill-opacity:1;stroke:none" />
+      <g
+         id="SmallFrames"
+         inkscape:label="Frames">
+        <rect
+           x="26"
+           y="28"
+           width="60"
+           height="80"
+           rx="2"
+           style="fill:none;stroke:#fe8122;stroke-width:14"
+           id="rect7" />
+        <rect
+           x="66"
+           y="52"
+           width="44"
+           height="56"
+           rx="2"
+           style="fill:none;stroke:#02466e;stroke-width:16"
+           id="rect8" />
+        <rect
+           x="66"
+           y="52"
+           width="44"
+           height="56"
+           rx="2"
+           style="fill:none;stroke:#fe8122;stroke-width:12"
+           id="rect9" />
+      </g>
+      <rect
+         id="SmallBoxFront"
+         inkscape:label="Box front"
+         x="8"
+         y="96"
+         width="112"
+         height="24"
+         rx="3"
+         style="fill:#02466e;fill-opacity:1;stroke:none" />
+    </g>
+  </g>
+</svg>
