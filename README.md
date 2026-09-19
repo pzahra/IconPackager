@@ -136,7 +136,8 @@ A frame is a file name followed by options separated by `|`:
 | `mask`   | `old.bmp\|mask #ff00ff`           | Colour drawn as transparent. Defaults to magenta for artwork without an alpha channel; `none` disables it. |
 | `invert` | `old.bmp\|invert #008080`         | Colour drawn as screen-inverting pixels at `bw`, `pal` and `rgb`. Defaults to teal for artwork without an alpha channel; `none` disables it. |
 
-The full format, including rendering rules and error behaviour, is in [docs/project-format.md](docs/project-format.md).
+The full format, including rendering rules and error behaviour, is in
+[docs/project-format.md](https://github.com/pzahra/IconPackager/blob/main/docs/project-format.md).
 
 ## Using the library
 
@@ -212,4 +213,4 @@ run the built tool on `icon\icons.ini` and commit the new images with the drawin
 
 ## License
 
-MIT. See [LICENSE.txt](LICENSE.txt).
+MIT. See [LICENSE.txt](https://github.com/pzahra/IconPackager/blob/main/LICENSE.txt).

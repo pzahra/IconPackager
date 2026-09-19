@@ -17,13 +17,12 @@ These affect anyone using the build step, and each is a small change.
   intended behaviour. `IconPackager/ProjectParser.cs`, `ParseKey`.
 - [x] **Anchor the project file grammar.** Both regexes are anchored and case-insensitive on names, a line
   before the first section is a parse error, and `ParserTests` covers each case.
-- [ ] **Rename the MSBuild target.** `BuildIcons` is generic enough to collide with a consumer's own target
-  or another package's, and MSBuild silently replaces a same-named target. Rename it
-  `IconPackagerBuildIcons`; the properties are already prefixed. `IconPackager/build/PatTech.IconPackager.targets`.
-- [ ] **Fix the links in the packaged README.** The README goes into both packages, but its relative links
-  to `docs/project-format.md` and `LICENSE.txt` point nowhere on nuget.org. Make them absolute GitHub URLs.
-  `README.md`, `Directory.Build.props`.
-- [ ] **Fill in LICENSE.txt.** It still reads `Copyright (c) [year] [fullname]`.
+- [x] **Rename the MSBuild target.** `BuildIcons` is now `IconPackagerBuildIcons`, so it cannot collide
+  with a consumer's own target or another package's.
+- [x] **Fix the links in the packaged README.** The two relative links, to `docs/project-format.md` and
+  `LICENSE.txt`, are now absolute GitHub URLs, so they resolve both on GitHub and on nuget.org. No change
+  to `Directory.Build.props` was needed: the same README serves both, and absolute links work in each.
+- [x] **Fill in LICENSE.txt.** `Copyright (c) 2026 Patrick Zahra`.
 
 ## P2: robustness and tests
 

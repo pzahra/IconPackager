@@ -28,7 +28,7 @@
     embedded. Design-time builds in the IDE skip it. The tool reports problems in MSBuild's error format
     with the icons.ini line they concern, so they appear in the error list and fail the build.
   -->
-  <Target Name="BuildIcons"
+  <Target Name="IconPackagerBuildIcons"
           BeforeTargets="CoreCompile"
           Condition="'@(IconProject)' != '' and '$(DesignTimeBuild)' != 'true'">
 
