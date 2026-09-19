@@ -21,11 +21,13 @@ namespace PatTech.IconPackager {
 		static readonly Regex rxIcoParam = new(@"^([^|]+?)\s*(?:\|\s*(use|snip|mask|invert)\s+([^|]+?)\s*)*$");
 		static readonly Regex rxCrop = new(@"^(?:(\d+(?:\.\d+)?)(|mm|in|px)(?:[, ]+|$)){4}$");
 
-		public static IconProject Parse(string file) {
+		/// <param name="file">The project file.</param>
+		/// <param name="outputFolder">Where the outputs are written, or null for the project file's folder.</param>
+		public static IconProject Parse(string file, string? outputFolder = null) {
 			if (!File.Exists(file)) throw new FileNotFoundException("Project file not found", file);
 			var outputs = new List<IconDef>();
 			IconDef? ico = null;
-			string folder = Path.GetDirectoryName(file)!;
+			string folder = Path.GetDirectoryName(Path.GetFullPath(file))!;
 			// Line numbers are kept so that errors can point at the line they concern.
 			foreach (var (line, lineNo) in File.ReadAllLines(file)
 				.Select((l, i) => (Text: l.Split(';')[0].Trim(), No: i + 1))
@@ -35,7 +37,7 @@ namespace PatTech.IconPackager {
 				if (section.Success) {
 					ico = new() {
 						Name = section.Groups[1].Value,
-						DestFile = Path.Combine(folder, section.Groups[1].Value),
+						DestFile = Path.Combine(outputFolder ?? folder, section.Groups[1].Value),
 						Kind = section.Groups[2].Value == "png" ? OutputKind.Png : OutputKind.Ico,
 						LookupFolder = folder,
 						Line = lineNo,

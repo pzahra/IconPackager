@@ -31,6 +31,8 @@ Working today:
 - Outputs rebuilt only when the artwork or the project file changed, or on every run, or skipped (`output=`).
 - Colour keys for legacy artwork: a transparent colour (`mask`) and a screen-inverting colour (`invert`),
   with the classic magenta and teal defaults for images that have no alpha channel.
+- A montage of every frame beside each icon, for checking the result at a glance, and an existing `.ico`
+  exploded back into one PNG per frame.
 
 ## Requirements
 
@@ -57,17 +59,18 @@ pack=logo.svg|use AppIcon
 16-true=logo.svg|use AppIconSmall
 ```
 
-Build the project. `app.ico` appears next to `icons.ini` before the compiler runs, so the project can
-embed it:
+Build the project. `app.ico` is written under `obj` before the compiler runs, so the project can embed
+it by naming it:
 
 ```xml
 <PropertyGroup>
-  <ApplicationIcon>app.ico</ApplicationIcon>
+  <IconPackagerApplicationIcon>app.ico</IconPackagerApplicationIcon>
 </PropertyGroup>
 ```
 
-The generated files belong in `.gitignore`: they are rebuilt whenever the artwork or `icons.ini` changes
-and skipped when neither has, so the repository holds only the sources.
+Nothing lands in the source tree: the icons are rebuilt whenever the artwork or `icons.ini` changes,
+skipped when neither has, and removed by `dotnet clean`. Next to each icon is `app.montage.png`, every
+frame on one sheet, for checking what a change to the artwork did.
 
 ## The build step
 
@@ -75,29 +78,42 @@ The `PatTech.IconPackager` package is a development dependency: it adds one MSBu
 assembly is referenced, nothing is copied to your output folder, and the package does not flow to projects
 that reference yours. Before `CoreCompile` in every project that references it, the target:
 
-- builds every `icons.ini` under the project folder, ignoring `bin` and `obj`;
+- builds every `icons.ini` under the project folder, ignoring `bin` and `obj`, into
+  `obj\<Configuration>\<TargetFramework>\icons\`, with a montage of every frame beside each icon;
 - reports problems as build errors that name the `icons.ini` line concerned, so they show in the error list
   and jump to the line;
 - fails the build when any icon could not be built in full. An icon whose remaining frames rendered is
   still written, but it is rebuilt and the error repeated on every build until it is fixed.
 
-| In the project file                                             | Effect                                                     |
-| --------------------------------------------------------------- | ---------------------------------------------------------- |
-| `<EnableDefaultIconProjects>false</EnableDefaultIconProjects>`  | Stop picking up `icons.ini` files automatically.           |
-| `<IconProject Include="art\tray.ini" />`                        | Build this project file as well, or instead.               |
+| In the project file                                                  | Effect                                                            |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `<EnableDefaultIconProjects>false</EnableDefaultIconProjects>`       | Stop picking up `icons.ini` files automatically.                  |
+| `<IconProject Include="art\tray.ini" />`                             | Build this project file as well, or instead.                      |
+| `<IconPackagerApplicationIcon>app.ico</IconPackagerApplicationIcon>` | Embed this icon, from the output folder, as the application icon. |
+| `<IconPackagerOutputDir>$(MSBuildProjectDirectory)\icons\</IconPackagerOutputDir>` | Write the icons somewhere else.                     |
+| `<IconPackagerMontage>false</IconPackagerMontage>`                   | Skip the montages.                                                |
+
+`IconPackagerOutputDir` is set by the package's targets, after the project file has been read, so a
+project can use it inside a target or in a `Directory.Build.targets`, for a `Content` or `EmbeddedResource`
+item say, but not in its own body. That is why the application icon has a property of its own.
 
 Rendering uses System.Drawing, so the step only works on Windows and is an error elsewhere. A project
 that also builds on Linux or macOS should condition its `IconProject` items and `EnableDefaultIconProjects`
 on `$([MSBuild]::IsOSPlatform('Windows'))`, and check in the icon, or condition `ApplicationIcon` the same way.
 
-The tool can also run by hand, for scripts outside MSBuild. Build this repository and run:
+The tool can also run by hand, for scripts outside MSBuild or for looking inside an icon. Build this
+repository and run:
 
 ```
-IconPackager path\to\icons.ini [more.ini ...]
+IconPackager [--out <folder>] [--montage] [--explode] <icons.ini | app.ico> ...
 ```
 
-The exit code is 0 only when every icon was built in full, 1 when a project file or frame failed, 2 when
-no project file was given and 3 when the tool itself failed.
+Project files are built, with their outputs next to them or in the `--out` folder. An `.ico` file is
+pictured instead: `--montage` writes `app.montage.png` with every frame on one sheet, `--explode` writes
+each frame as `app.<size>-<depth>.png`, and an icon named with neither gets both. The same two switches
+apply to the icons a project file builds. The exit code is 0 only when everything was built, 1 when a
+project file, frame or icon failed, 2 when the command line was not understood and 3 when the tool itself
+failed.
 
 ## Project files
 
@@ -158,14 +174,18 @@ icon.Write(writer);
 Frames are written in the order they are added, and sizes run from 1 to 256 pixels. The public types
 carry XML documentation, so IntelliSense describes each member.
 
+`IconReader` goes the other way: it reads an `.ico` into its frames, each with its size, depth and encoded
+data, and `ToBitmap` decodes a frame to a 32-bit bitmap, honouring the palette and the transparency mask.
+Pixels that would invert the screen can be painted a colour of your choice or left transparent.
+
 ## Repository layout
 
 | Path                                  | Contents                                                                         |
 | ------------------------------------- | -------------------------------------------------------------------------------- |
-| `IconPackager/`                       | The command-line tool. `ProjectParser` reads project files, `IconProject` renders and writes the outputs, and `FrameLoader`, `Artwork` and `SvgRenderer` produce each frame. |
+| `IconPackager/`                       | The command-line tool. `ProjectParser` reads project files, `IconProject` renders and writes the outputs, `FrameLoader`, `Artwork` and `SvgRenderer` produce each frame, and `IconInspector` and `Montage` picture existing icons. |
 | `IconPackager/build/`                 | The `.props` and `.targets` the package adds to a consuming project.             |
 | `IconPackager/Properties/project.ini` | A sample project file showing the syntax. Its assets are not included.           |
-| `IcoNet/`                             | The library: `IconBuilder` writes `.ico` files, `BitmapExt` prepares frames.     |
+| `IcoNet/`                             | The library: `IconBuilder` writes `.ico` files, `IconReader` reads them, `BitmapExt` prepares frames. |
 | `Directory.Build.props`               | Version, author and licence shared by both packages.                             |
 | `docs/`                               | The project file format reference.                                               |
 | `eel.svg`                             | A sample Inkscape drawing with a `laughing-eel` element to try `use` on.         |

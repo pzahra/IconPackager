@@ -15,16 +15,20 @@ namespace PatTech.IconPackager {
 			this.outputs = outputs;
 		}
 
-		/// <summary>Reads a project file. See <see cref="ProjectParser"/> for what it may contain.</summary>
-		public static IconProject FromFile(string file) => ProjectParser.Parse(file);
+		/// <summary>
+		/// Reads a project file. See <see cref="ProjectParser"/> for what it may contain. Outputs are written
+		/// to <paramref name="outputFolder"/>, or next to the project file when that is null.
+		/// </summary>
+		public static IconProject FromFile(string file, string? outputFolder = null) => ProjectParser.Parse(file, outputFolder);
 
 		/// <summary>
 		/// Renders every output that is due under its <c>output</c> policy and writes each one that has at
-		/// least one frame. Problems are reported on standard error in MSBuild's format, one line each, and
-		/// rendering carries on with the next frame or output.
+		/// least one frame, followed by the montage and exploded frames <paramref name="options"/> ask for.
+		/// Problems are reported on standard error in MSBuild's format, one line each, and rendering carries
+		/// on with the next frame or output.
 		/// </summary>
 		/// <returns>True when every frame of every output was rendered and written.</returns>
-		public bool RenderAll() {
+		public bool RenderAll(Options options) {
 			bool ok = true;
 			foreach (var output in outputs) {
 				if (output.Output == OutputMode.None) {
@@ -33,6 +37,8 @@ namespace PatTech.IconPackager {
 				}
 				if (IsUpToDate(output)) {
 					Console.WriteLine($"{output.Name} is up to date");
+					// The pictures may still be missing, if they were asked for after the icon was built.
+					ok &= Picture(output, options);
 					continue;
 				}
 
@@ -58,6 +64,7 @@ namespace PatTech.IconPackager {
 				}
 				try {
 					Write(output, frames);
+					ok &= Picture(output, options);
 					// An output missing a frame is still useful, but it must not pass as up to date next time,
 					// or the failure would go unreported until a source changed. Dating it back guarantees a rerun.
 					if (!complete) File.SetLastWriteTimeUtc(output.DestFile, DateTime.UnixEpoch);
@@ -83,6 +90,12 @@ namespace PatTech.IconPackager {
 			}
 			using var writer = new BinaryWriter(outfile);
 			iconFile.Write(writer);
+		}
+
+		/// <summary>The montage and exploded frames of an icon output, when asked for. A PNG output is its own picture.</summary>
+		private static bool Picture(IconDef output, Options options) {
+			if (output.Kind != OutputKind.Ico || !(options.Montage || options.Explode)) return true;
+			return IconInspector.Inspect(output.DestFile, null, options.Montage, options.Explode);
 		}
 
 		/// <summary>

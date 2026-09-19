@@ -18,6 +18,8 @@ namespace PatTech.IconPackager {
 		public const string Write = "IP1004";
 		/// <summary>The tool failed with an exception it did not expect.</summary>
 		public const string Unexpected = "IP1005";
+		/// <summary>An icon file could not be read, or is not an icon.</summary>
+		public const string Icon = "IP1006";
 
 		/// <param name="origin">The file the problem concerns, or the tool name when there is none.</param>
 		/// <param name="line">The 1-based line within <paramref name="origin"/>, or 0 when not applicable.</param>

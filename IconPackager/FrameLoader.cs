@@ -11,7 +11,7 @@ namespace PatTech.IconPackager {
 	/// </summary>
 	static class FrameLoader {
 		/// <summary>The colours classic icon editors used to mark transparent and screen-inverting pixels.</summary>
-		static readonly Color DefaultMask = Color.Magenta, DefaultInvert = Color.Teal;
+		internal static readonly Color DefaultMask = Color.Magenta, DefaultInvert = Color.Teal;
 
 		public static Artwork Load(string lookup, IconFrame frame, int size) {
 			var file = Path.Combine(lookup, frame.File);

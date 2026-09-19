@@ -4,10 +4,12 @@ An icon project is a plain-text `.ini` file that tells IconPackager which `.ico`
 frames to put in each, and which single-image `.png` files to write alongside them. Run it with:
 
 ```
-IconPackager project.ini [more.ini ...]
+IconPackager [--out <folder>] [--montage] [--explode] project.ini [more.ini ...]
 ```
 
-Each project file is processed in turn, and its icons are written next to it.
+Each project file is processed in turn, and its outputs are written next to it, or into the `--out`
+folder, which is created if need be. The other two switches picture the icons built; see
+[Pictures of an icon](#pictures-of-an-icon).
 
 ```ini
 ; Comments start with a semicolon.
@@ -174,6 +176,27 @@ parse error. The value `none` switches a key off.
 - The 256 px frame is stored as PNG. All other frames are stored as bitmaps at the requested depth with a
   1-bit transparency mask derived from the alpha channel.
 
+## Pictures of an icon
+
+Two switches write pictures of an icon beside it, for checking what the depths and masks did to the
+artwork. They apply to every icon a project file builds, and to any `.ico` file named on the command line
+in place of a project file, which is pictured without being rebuilt. An `.ico` named with neither switch
+gets both.
+
+- `--montage` writes `name.montage.png`: every frame in directory order on one sheet, each over a
+  checkerboard with its size and depth beneath. Frames up to 128 px are magnified by a whole number so
+  that their pixels stay square; the 256 px frame is shown at half size.
+- `--explode` writes each frame as `name.<size>-<depth>.png`, `app.32-pal.png` say, with the depth
+  written the way a project file would. A PNG-compressed frame, labelled `png`, is copied byte for byte;
+  the others are decoded. Two frames of the same size and depth are numbered.
+
+Frames are decoded the way Windows draws them: a 32-bit frame with an alpha channel is blended by it, and
+every other frame takes its transparency from the mask. Pixels that would invert the screen are painted
+teal (`#008080`), so an exploded frame fed back in with `invert #008080` reproduces them.
+
+The pictures follow the icon's `output` policy in spirit: they are written when missing or older than the
+icon, and left alone otherwise. Under `--out` they go to that folder too.
+
 ## Errors and exit code
 
 Problems are reported on standard error, one line each, in the format MSBuild and Visual Studio recognise,
@@ -185,15 +208,17 @@ C:\src\app\icons.ini(5): error IP1002: app.ico: 48px frame from logo.svg: Elemen
 
 | Code     | Meaning                                                                                                              |
 | -------- | -------------------------------------------------------------------------------------------------------------------- |
-| `IP1000` | No project file was given on the command line.                                                                       |
+| `IP1000` | The command line was not understood: no project or icon file, an unknown switch, or `--out` without a folder. |
 | `IP1001` | A project file does not exist, cannot be read, or has an unrecognised line, option, crop or `output` value. None of its outputs are written; the other project files on the command line are still processed. |
-| `IP1002` | A frame could not be rendered: missing source file, unknown `use` name, empty region. The frame is skipped and the output is still written with its remaining frames. |
+| `IP1002` | A frame could not be rendered: missing source file, unknown `use` name, empty region. The frame is skipped and the output is still written with its remaining frames. Also a frame of an existing icon that could not be decoded. |
 | `IP1003` | An output had no frames left to write.                                                                               |
-| `IP1004` | An output file could not be written: missing folder, locked file.                                                    |
+| `IP1004` | An output, montage or exploded frame could not be written: missing folder, locked file.                              |
 | `IP1005` | The tool failed with an unexpected exception. The stack trace follows the message.                                   |
+| `IP1006` | An icon file named on the command line, or one just built, could not be read or is not an icon.                      |
 
 An output written without one of its frames is dated back to 1970, so under `output=newest` it never
 counts as up to date and the failure is reported again on each run until it is fixed.
 
-The exit code is 0 when every output in every project file was built in full, 1 when any project file,
-frame or output failed, 2 when no project file was given, and 3 for `IP1005`.
+The exit code is 0 when every output in every project file was built in full and every icon pictured, 1
+when any project file, frame, output or icon failed, 2 when the command line was not understood, and 3
+for `IP1005`.

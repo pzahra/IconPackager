@@ -58,14 +58,13 @@ These affect anyone using the build step, and each is a small change.
 ## P3: improvements
 
 - [ ] **Run the build step once per project, not once per target framework.** A multi-targeted project
-  runs the tool in every inner build; the mutex keeps them from colliding but `output=overwrite` renders
-  everything twice and failures are reported twice. Running only in the outer build races with project
-  references that call inner builds directly, so the fix is probably a per-run stamp file the target uses
-  as an `Inputs`/`Outputs` marker. `IconPackager/build/PatTech.IconPackager.targets`.
-- [ ] **Let `dotnet clean` remove generated icons.** Outputs are not in `FileWrites` and there is no clean
-  target, so they linger after a clean. Cheapest route: a `--list` mode in the tool that prints the outputs
-  a project file would write, and a target that deletes them. Decide first whether that is wanted, since
-  the icons sit in the source tree by design.
+  runs the tool in every inner build. Each framework now has its own `obj\...\icons\` folder, so the runs
+  no longer write the same files, but every frame is still rendered and every failure reported once per
+  framework. Running only in the outer build races with project references that call inner builds
+  directly, so the fix is probably a per-run stamp file the target uses as an `Inputs`/`Outputs` marker.
+  `IconPackager/build/PatTech.IconPackager.targets`.
+- [x] **Let `dotnet clean` remove generated icons.** The build step writes under `obj` and adds the folder
+  to `FileWrites`, so `Clean` and `IncrementalClean` remove the icons and montages with everything else.
 - [ ] **Decide on path validation.** Section names and `source` accept rooted paths and `..`, so a project
   file can read and write anywhere. The docs describe absolute `source` as a feature; if that stays,
   document that output names may also leave the folder, or restrict output names to below the project file.

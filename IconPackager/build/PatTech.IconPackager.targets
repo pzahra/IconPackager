@@ -11,6 +11,16 @@
 
   <PropertyGroup>
     <IconPackagerToolPath Condition="'$(IconPackagerToolPath)' == ''">$(MSBuildThisFileDirectory)..\tools\net10.0\IconPackager.dll</IconPackagerToolPath>
+    <!--
+      Where the icons are written: under obj by default, so that they stay out of source control and go
+      with Clean. Defined here, after the common targets, because IntermediateOutputPath is not known
+      before them; a project can read it in a Directory.Build.targets or inside a target, not in its body.
+    -->
+    <IconPackagerOutputDir Condition="'$(IconPackagerOutputDir)' == ''">$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'icons'))</IconPackagerOutputDir>
+    <!-- A montage of every frame, name.montage.png, is written next to each icon. Set false to skip it. -->
+    <IconPackagerMontage Condition="'$(IconPackagerMontage)' == ''">true</IconPackagerMontage>
+    <!-- Names the icon in the output folder to embed as the application icon, since the project body cannot spell that path itself. -->
+    <ApplicationIcon Condition="'$(IconPackagerApplicationIcon)' != ''">$(IconPackagerOutputDir)$(IconPackagerApplicationIcon)</ApplicationIcon>
   </PropertyGroup>
 
   <!--
@@ -29,16 +39,24 @@
     <PropertyGroup>
       <_IconPackagerHost>$(DOTNET_HOST_PATH)</_IconPackagerHost>
       <_IconPackagerHost Condition="'$(_IconPackagerHost)' == ''">dotnet</_IconPackagerHost>
+      <!-- Without the trailing separator, which would escape the closing quote on the command line. -->
+      <_IconPackagerSwitches>--out &quot;$(IconPackagerOutputDir.TrimEnd('\'))&quot;</_IconPackagerSwitches>
+      <_IconPackagerSwitches Condition="'$(IconPackagerMontage)' == 'true'">$(_IconPackagerSwitches) --montage</_IconPackagerSwitches>
     </PropertyGroup>
 
-    <Message Importance="high" Text="Building icons from @(IconProject, ', ')" />
-    <Exec Command="&quot;$(_IconPackagerHost)&quot; &quot;$(IconPackagerToolPath)&quot; @(IconProject->'&quot;%(FullPath)&quot;', ' ')"
+    <Message Importance="high" Text="Building icons from @(IconProject, ', ') into $(IconPackagerOutputDir)" />
+    <Exec Command="&quot;$(_IconPackagerHost)&quot; &quot;$(IconPackagerToolPath)&quot; $(_IconPackagerSwitches) @(IconProject->'&quot;%(FullPath)&quot;', ' ')"
           IgnoreExitCode="true">
       <Output TaskParameter="ExitCode" PropertyName="_IconPackagerExitCode" />
     </Exec>
     <Error Code="IP0002"
            Condition="'$(_IconPackagerExitCode)' != '0'"
            Text="IconPackager exited with code $(_IconPackagerExitCode); the errors it reported above say why." />
+
+    <!-- Everything in the folder is a build output, so that Clean removes it. -->
+    <ItemGroup>
+      <FileWrites Include="$(IconPackagerOutputDir)**" />
+    </ItemGroup>
 
   </Target>
 
